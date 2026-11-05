@@ -8,12 +8,16 @@
   "private": false,
   "scripts": {
     "start": "node apps/server/server.js",
-    "test": "node tests/runtime.test.js && node tests/v03.test.js && node tests/v04.test.js && node tests/v05.test.js",
+    "test": "node tests/runtime.test.js && node tests/v03.test.js && node tests/v04.test.js && node tests/v05.test.js && node tests/v06.test.js && node tests/v07.test.js && node tests/v08.test.js",
     "relay": "node apps/relay/relay.js",
     "test:v02": "node tests/runtime.test.js",
     "test:v03": "node tests/v03.test.js",
     "test:v04": "node tests/v04.test.js",
-    "install-pack": "node scripts/install-pack.js"
+    "install-pack": "node scripts/install-pack.js",
+    "test:v06": "node tests/v06.test.js",
+    "provision-tenant": "node scripts/provision-tenant.js",
+    "test:v07": "node tests/v07.test.js",
+    "test:v08": "node tests/v08.test.js"
   },
-  "version": "0.5.0"
+  "version": "0.8.0"
 }
