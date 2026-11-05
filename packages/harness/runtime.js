@@ -19,6 +19,7 @@ const { Chief } = require('../chief/chief');
 const { DeliveryService } = require('../connectors/delivery');
 const { KnowledgeStore } = require('./knowledge');
 const { WorkspaceSettings } = require('./settings');
+const { SkillStore } = require('./skills');
 
 class Workspace {
   constructor({ pack, dataRoot, env = process.env, delivery = null, workspaceId = null }) {
@@ -30,6 +31,7 @@ class Workspace {
     this.memory = new FileMemory(dataRoot);
     this.knowledge = new KnowledgeStore(dataRoot);
     this.settings = new WorkspaceSettings(dataRoot);
+    this.skills = new SkillStore(dataRoot);
     this.models = new ModelRouter(env);
     this.delivery = delivery || new DeliveryService(env);
     this.shadow = env.BIPPITY_SHADOW_MODE !== '0';
@@ -81,17 +83,21 @@ class Workspace {
     // teaches nothing.
     let learned = 0;
     if (Array.isArray(work.learns)) for (const l of work.learns) { try { this.knowledge.add(this.id, { ...l, source: bot.name }); learned++; } catch { /* bad entry skipped */ } }
+    // Skills: published skills assigned to this bot whose triggers appear
+    // in the brief are followed (drafts never are) and noted in Knowledge.
+    const followed = this.skills.matchFor(this.id, bot.id, text).map((s) => s.name);
+    for (const name of followed) { try { this.knowledge.add(this.id, { type: 'skills', title: `Skill followed: ${name}`, detail: `Followed during: ${work.title}`, source: bot.name }); } catch { /* skip */ } }
     if (d.decision === 'run') {
       this.state.counters.done++;
       this._log({ kind: 'auto', bot: bot.name, action: work.action, title: work.title });
       this._save();
-      return { type: 'done', from: bot.name, message: work.summary, learned, counters: this.state.counters };
+      return { type: 'done', from: bot.name, message: work.summary, learned, skills: followed, counters: this.state.counters };
     }
     const approval = { id: 'a' + (++this.state.seq), bot: bot.name, botId: bot.id, action: work.action, title: work.title, body: work.body, summary: work.summary, deliver: work.deliver || null, at: new Date().toISOString(), status: 'waiting' };
     this.state.approvals.unshift(approval);
     this._log({ kind: 'queued', bot: bot.name, action: work.action, title: work.title });
     this._save();
-    return { type: 'queued', from: bot.name, message: work.summary, approval, learned, counters: this.state.counters };
+    return { type: 'queued', from: bot.name, message: work.summary, approval, learned, skills: followed, counters: this.state.counters };
   }
 
   /**
@@ -128,6 +134,7 @@ class Workspace {
       models: this.models.status(this.bots.map((b) => b.model)),
       delivery: this.delivery.status(),
       knowledge: { total: this.knowledge.list(this.id).length, counts: this.knowledge.counts(this.id) },
+      skills: { total: this.skills.list(this.id).length, published: this.skills.list(this.id).filter((s) => s.status === 'published').length },
     };
   }
 }
