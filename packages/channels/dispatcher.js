@@ -25,9 +25,9 @@ function resultText(result) {
 }
 class ChannelDispatcher {
   constructor({ workspaces, defaultWorkspace = 'enrollment' }) { this.workspaces = workspaces; this.defaultWorkspace = defaultWorkspace; }
-  async brief({ text, user, ownerId, channel = 'chat' }) {
+  async brief({ text, user, ownerId, channel = 'chat', workspace = null }) {
     if (ownerId && user !== ownerId) return { type: 'message-taken', text: "Got it — I've passed your message to the owner. They'll pick it up from here." };
-    const { wsId, text: clean } = pickWorkspace(text, this.workspaces, this.defaultWorkspace);
+    const { wsId, text: clean } = pickWorkspace(text, this.workspaces, workspace || this.defaultWorkspace);
     const ws = this.workspaces[wsId];
     if (!ws) return { type: 'error', text: `No workspace "${wsId}" is running.` };
     const result = await ws.brief(clean, channel);
