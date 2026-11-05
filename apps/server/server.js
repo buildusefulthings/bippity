@@ -65,6 +65,9 @@ function registerWorkspace(id, ws, seedDir) {
   workspaces[id] = ws;
   const wsDir = path.join(DATA, 'workspaces', id);
   const routines = readJsonArray(path.join(wsDir, 'routines.json')).length ? readJsonArray(path.join(wsDir, 'routines.json')) : (seedDir ? readJsonArray(path.join(seedDir, 'routines.json')) : []);
+  // Seed the workspace's skills from the pack (first registration only)
+  const packSkillsDir = seedDir ? path.join(seedDir, 'skills') : null;
+  if (packSkillsDir && fs.existsSync(packSkillsDir)) ws.skills.seed(id, fs.readdirSync(packSkillsDir).filter((f) => f.endsWith('.md')).map((f) => ({ slug: f.replace(/\.md$/, ''), raw: fs.readFileSync(path.join(packSkillsDir, f), 'utf8') })));
   if (routines.length) routineRunners[id] = new RoutineRunner(ws, routines).start();
   const watches = readJsonArray(path.join(wsDir, 'watches.json')).length ? readJsonArray(path.join(wsDir, 'watches.json')) : (seedDir ? readJsonArray(path.join(seedDir, 'watches.json')) : []);
   if (watches.length) { watchRunners[id] = new WatchRunner(ws, watches, { dataRoot: DATA }).start(); }
@@ -126,6 +129,7 @@ const server = http.createServer(async (req, res) => {
     if (u.pathname === '/' || u.pathname === '/live') return send(res, 200, fs.readFileSync(path.join(ROOT, 'apps/web/live.html'), 'utf8'), 'text/html');
     if (u.pathname === '/sim') return send(res, 200, fs.readFileSync(path.join(ROOT, 'apps/web/index.html'), 'utf8'), 'text/html');
     if (u.pathname === '/signup' || u.pathname === '/welcome') return send(res, 200, fs.readFileSync(path.join(ROOT, 'apps/web/signup.html'), 'utf8'), 'text/html');
+    if (u.pathname === '/school' || u.pathname === '/microschools') return send(res, 200, fs.readFileSync(path.join(ROOT, 'apps/web/school.html'), 'utf8'), 'text/html');
     if (u.pathname === '/api/public/signup' && req.method === 'POST') {
       const b = await body(req);
       // Honeypot: real humans never fill the hidden "company_website" field.
@@ -277,6 +281,11 @@ const server = http.createServer(async (req, res) => {
       let event; try { event = JSON.parse(raw || '{}'); } catch { return send(res, 400, { error: 'bad json' }); }
       try { return send(res, 200, { received: true, result: billing.handleEvent(event) }); } catch (e) { return send(res, 500, { error: e.message }); }
     }
+    if (u.pathname === '/api/skills' && req.method === 'GET') { const w = wsOf(q); return send(res, 200, { skills: w.skills.list(w.id) }); }
+    if (u.pathname === '/api/skills' && req.method === 'POST') { const b = await body(req); const w = wsOf(b); try { return send(res, 200, { created: w.skills.create(w.id, b) }); } catch (err) { return send(res, 400, { error: err.message }); } }
+    if (u.pathname === '/api/skills/update' && req.method === 'POST') { const b = await body(req); const w = wsOf(b); try { return send(res, 200, { updated: w.skills.update(w.id, b.slug, b) }); } catch (err) { return send(res, 400, { error: err.message }); } }
+    if (u.pathname === '/api/skills/status' && req.method === 'POST') { const b = await body(req); const w = wsOf(b); try { return send(res, 200, { updated: w.skills.setStatus(w.id, b.slug, b.status) }); } catch (err) { return send(res, 400, { error: err.message }); } }
+    if (u.pathname === '/api/skills/remove' && req.method === 'POST') { const b = await body(req); const w = wsOf(b); return send(res, 200, { removed: w.skills.remove(w.id, b.slug) }); }
     if (u.pathname === '/api/settings' && req.method === 'GET') { const w = wsOf(q); return send(res, 200, { settings: w.settings.get(w.id) }); }
     if (u.pathname === '/api/settings' && req.method === 'POST') { const b = await body(req); const w = wsOf(b); try { return send(res, 200, { settings: w.settings.update(w.id, b) }); } catch (err) { return send(res, 400, { error: err.message }); } }
     if (u.pathname === '/api/knowledge' && req.method === 'GET') { const w = wsOf(q); return send(res, 200, { entries: w.knowledge.list(w.id, q.type || null), counts: w.knowledge.counts(w.id) }); }
