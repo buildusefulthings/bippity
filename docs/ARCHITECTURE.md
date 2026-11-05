@@ -46,3 +46,6 @@ Proxmox second, cloud third — a bot doesn't know which one it got.
 Chasing a connector count, multi-screen VMs, voice calls, a template
 marketplace. The wedge is vertical depth + guardrails + model choice,
 not breadth.
+
+
+v0.6 implementation status (2026-11-04) — hosted R2 built: packages/hosted (tenants, vault, metering, provision) + relay hosted mode. See docs/HOSTED_RELAY.md.
