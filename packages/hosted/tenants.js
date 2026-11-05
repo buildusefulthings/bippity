@@ -27,9 +27,9 @@ class TenantRegistry {
     if (fs.existsSync(this.file)) { try { this.tenants = JSON.parse(fs.readFileSync(this.file, 'utf8')); } catch { this.tenants = []; } }
   }
   _save() { fs.writeFileSync(this.file, JSON.stringify(this.tenants, null, 2)); }
-  create({ name, plan = 'pro', targetUrl, workspaces = [], status = 'active', email = null }) {
+  create({ name, plan = 'pro', targetUrl, workspaces = [], status = 'active', email = null, profile = null }) {
     if (!PLANS[plan]) throw new Error(`unknown plan "${plan}" (free|pro|max)`);
-    const t = { id: 't_' + crypto.randomBytes(4).toString('hex'), name: String(name || 'tenant'), email, plan, targetUrl: String(targetUrl || ''), workspaces: [...workspaces], relayToken: token(), instanceSecret: token(), createdAt: new Date().toISOString(), status };
+    const t = { id: 't_' + crypto.randomBytes(4).toString('hex'), name: String(name || 'tenant'), email, plan, targetUrl: String(targetUrl || ''), workspaces: [...workspaces], relayToken: token(), instanceSecret: token(), createdAt: new Date().toISOString(), status, profile: profile || null };
     this.tenants.push(t); this._save(); return t;
   }
   byToken(relayToken) { return this.tenants.find((t) => t.relayToken === relayToken && (t.status === 'active' || t.status === 'past_due')) || null; }

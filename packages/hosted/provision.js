@@ -15,11 +15,11 @@ const fs = require('fs');
 const path = require('path');
 const { installPack } = require('../harness/pack-installer');
 
-function provisionTenant({ registry, vault = null, meter = null, dataRoot, packsRoot, relayBase, name, plan = 'pro', pack, vars = {}, workspaceName, targetUrl, secrets = null, computer = null, status = 'active', email = null }) {
+function provisionTenant({ registry, vault = null, meter = null, dataRoot, packsRoot, relayBase, name, plan = 'pro', pack, vars = {}, workspaceName, targetUrl, secrets = null, computer = null, status = 'active', email = null, profile = null }) {
   const wsName = workspaceName || String(name || 'tenant').toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
   const installed = installPack({ packDir: path.join(packsRoot, pack), dataRoot, workspaceName: wsName, vars });
   if (!installed.ok) return { ok: false, stage: 'install', ...installed };
-  const tenant = registry.create({ name, plan, targetUrl, workspaces: [wsName], status, email });
+  const tenant = registry.create({ name, plan, targetUrl, workspaces: [wsName], status, email, profile });
   let vaultKeys = [];
   if (vault && secrets) { vaultKeys = vault.put(tenant.id, secrets).keys; }
   let computerPlan = null;
