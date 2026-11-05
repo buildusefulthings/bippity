@@ -49,6 +49,8 @@ const telegramBot = new tgMod.TelegramBot(process.env);
 const delivery = new DeliveryService(process.env);
 const proxmox = new ProxmoxDriver(process.env, { pollMs: 800 });
 
+const { parseRoutineText, describeSchedule } = require(path.join(ROOT, 'packages/channels/routine-parse'));
+const routineRunners = {};
 const DATA = path.join(ROOT, '.data');
 const hostedRegistry = new TenantRegistry(DATA);
 const hostedVault = new KeyVault(DATA);
@@ -63,7 +65,7 @@ function registerWorkspace(id, ws, seedDir) {
   workspaces[id] = ws;
   const wsDir = path.join(DATA, 'workspaces', id);
   const routines = readJsonArray(path.join(wsDir, 'routines.json')).length ? readJsonArray(path.join(wsDir, 'routines.json')) : (seedDir ? readJsonArray(path.join(seedDir, 'routines.json')) : []);
-  if (routines.length) new RoutineRunner(ws, routines).start();
+  if (routines.length) routineRunners[id] = new RoutineRunner(ws, routines).start();
   const watches = readJsonArray(path.join(wsDir, 'watches.json')).length ? readJsonArray(path.join(wsDir, 'watches.json')) : (seedDir ? readJsonArray(path.join(seedDir, 'watches.json')) : []);
   if (watches.length) { watchRunners[id] = new WatchRunner(ws, watches, { dataRoot: DATA }).start(); }
   return ws;
@@ -160,6 +162,26 @@ const server = http.createServer(async (req, res) => {
     if (u.pathname === '/api/workspaces') return send(res, 200, { workspaces: Object.values(workspaces).map((w) => ({ id: w.id, pack: w.pack.id, name: w.pack.name, installed: !!listInstalled(DATA).find((m) => m.workspace === w.id) })) });
     if (u.pathname === '/api/packs') return send(res, 200, { available: listPacks(PACKS_ROOT), installed: listInstalled(DATA) });
     if (u.pathname === '/api/packs/install' && req.method === 'POST') { const b = await body(req); const packDir = path.join(PACKS_ROOT, String(b.pack || '')); const r = installPack({ packDir, dataRoot: DATA, workspaceName: b.name, vars: b.vars || {}, force: !!b.force }); if (!r.ok) return send(res, 400, r); registerWorkspace(r.workspace, new Workspace({ pack: loadPack(path.join(DATA, 'workspaces', r.workspace, 'pack')), dataRoot: DATA, workspaceId: r.workspace }), path.join(DATA, 'workspaces', r.workspace, 'pack')); return send(res, 200, { installed: r, status: workspaces[r.workspace].status() }); }
+    if (u.pathname === '/api/routines' && req.method === 'GET') { const r = routineRunners[q.ws]; return send(res, 200, { routines: r ? r.routines.map((x) => ({ ...x, describe: describeSchedule(x) })) : [], watches: watchRunners[q.ws] ? watchRunners[q.ws].status() : [] }); }
+    if (u.pathname === '/api/routines' && req.method === 'POST') {
+      const b = await body(req); const w = wsOf(b);
+      const parsed = parseRoutineText(b.text);
+      if (!parsed) return send(res, 400, { error: 'I couldn’t read that as a routine. Try “Every weekday at 8:30, summarize my inbox” or “Watch https://… and tell me when it changes”.' });
+      const wsDir = path.join(DATA, 'workspaces', w.id);
+      if (parsed.kind === 'schedule') {
+        const runner = routineRunners[w.id] || (routineRunners[w.id] = new RoutineRunner(w, []).start());
+        if (runner.routines.some((x) => x.name === parsed.routine.name)) return send(res, 400, { error: 'A routine with that name already exists here.' });
+        runner.routines.push(parsed.routine);
+        fs.writeFileSync(path.join(wsDir, 'routines.json'), JSON.stringify(runner.routines, null, 2));
+        return send(res, 200, { added: { ...parsed.routine, describe: describeSchedule(parsed.routine) } });
+      }
+      const wr = watchRunners[w.id] || (watchRunners[w.id] = new WatchRunner(w, [], { dataRoot: DATA }).start());
+      wr.watches.push(parsed.watch);
+      const wf = path.join(wsDir, 'watches.json');
+      fs.writeFileSync(wf, JSON.stringify(wr.watches.map((x) => ({ name: x.name, type: x.type, target: x.target, intervalMin: x.intervalMin, brief: x.brief, contains: x.contains })), null, 2));
+      return send(res, 200, { addedWatch: parsed.watch });
+    }
+    if (u.pathname === '/api/routines/remove' && req.method === 'POST') { const b = await body(req); const w = wsOf(b); const r = routineRunners[w.id]; if (!r) return send(res, 200, { removed: false }); const before = r.routines.length; r.routines = r.routines.filter((x) => x.name !== b.name); fs.writeFileSync(path.join(DATA, 'workspaces', w.id, 'routines.json'), JSON.stringify(r.routines, null, 2)); return send(res, 200, { removed: r.routines.length < before }); }
     if (u.pathname === '/api/watches') return send(res, 200, { watches: watchRunners[q.ws] ? watchRunners[q.ws].status() : [] });
     if (u.pathname === '/api/watches/tick' && req.method === 'POST') { const b = await body(req); const runner = watchRunners[b.ws]; if (!runner) return send(res, 200, { fired: [], note: 'no watches for this workspace' }); return send(res, 200, { fired: await runner.tick(), status: wsOf(b).status() }); }
     if (u.pathname === '/api/connectors') { const sb = await createSandbox({ dataRoot: DATA, preferred: process.env.BIPPITY_COMPUTER_DRIVER || 'docker' }); return send(res, 200, { connectors: connectorStatus(), delivery: delivery.status(), shadow: process.env.BIPPITY_SHADOW_MODE !== '0', sandbox: sb.constructor.name, sandboxFallback: sb.fallbackReason || null }); }
@@ -255,6 +277,11 @@ const server = http.createServer(async (req, res) => {
       let event; try { event = JSON.parse(raw || '{}'); } catch { return send(res, 400, { error: 'bad json' }); }
       try { return send(res, 200, { received: true, result: billing.handleEvent(event) }); } catch (e) { return send(res, 500, { error: e.message }); }
     }
+    if (u.pathname === '/api/settings' && req.method === 'GET') { const w = wsOf(q); return send(res, 200, { settings: w.settings.get(w.id) }); }
+    if (u.pathname === '/api/settings' && req.method === 'POST') { const b = await body(req); const w = wsOf(b); try { return send(res, 200, { settings: w.settings.update(w.id, b) }); } catch (err) { return send(res, 400, { error: err.message }); } }
+    if (u.pathname === '/api/knowledge' && req.method === 'GET') { const w = wsOf(q); return send(res, 200, { entries: w.knowledge.list(w.id, q.type || null), counts: w.knowledge.counts(w.id) }); }
+    if (u.pathname === '/api/knowledge' && req.method === 'POST') { const b = await body(req); const w = wsOf(b); try { const e = w.knowledge.add(w.id, { type: b.type, title: b.title, detail: b.detail || '', source: b.source || 'You' }); return send(res, 200, { added: e, counts: w.knowledge.counts(w.id) }); } catch (err) { return send(res, 400, { error: err.message }); } }
+    if (u.pathname === '/api/knowledge/remove' && req.method === 'POST') { const b = await body(req); const w = wsOf(b); return send(res, 200, { removed: w.knowledge.remove(w.id, b.id), counts: w.knowledge.counts(w.id) }); }
     if (u.pathname === '/api/memory') { const w = wsOf(q); return send(res, 200, { bot: q.bot, memory: w.memory.load(w.id, q.bot || 'chief') }); }
     if (u.pathname === '/api/brief' && req.method === 'POST') { const b = await body(req); if (!b.text) return send(res, 400, { error: 'text required' }); meterWorkspace(wsOf(b).id, 'brief', 1); return send(res, 200, await wsOf(b).brief(String(b.text), 'web')); }
     if (u.pathname === '/api/approve' && req.method === 'POST') { const b = await body(req); const a = await wsOf(b).approve(b.id); if (a) { meterWorkspace(wsOf(b).id, 'approval', 1); if (a.delivery) meterWorkspace(wsOf(b).id, 'delivery', 1); } return a ? send(res, 200, { approved: a, delivery: a.delivery, status: wsOf(b).status() }) : send(res, 404, { error: 'no waiting approval with that id' }); }
