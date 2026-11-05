@@ -1,0 +1,12 @@
+// Rich bot definitions for the ops pack. MIT — copy freely.
+module.exports = {
+  chief: { name: 'Chief', emoji: '🧭', role: 'Morning brief, delegation, daily report', model: 'claude', keywords: [] },
+  otto: { name: 'Otto', emoji: '📦', role: 'Supplier PO chaser', model: 'openai', keywords: ['po', 'purchase order', 'supplier', 'chase', 'unconfirmed', 'late'],
+    work: (brief) => ({ summary: 'Checked the PO and supplier thread. Drafted a chase with the PO number, the missing confirmation, and a reply-by time.', action: 'send_supplier_chase', title: 'Send supplier chase', body: 'Morning — PO-1041 (banner vinyl, 40 rolls) is still unconfirmed on our side. Can you confirm ship date by 2pm? If it is slipping, tell me now and we will re-plan the install.' }) },
+  iris: { name: 'Iris', emoji: '📥', role: 'Order inbox triage', model: 'grok', keywords: ['inbox', 'order', 'email', 'triage'],
+    work: (brief) => ({ summary: 'Triaged the order inbox: 3 new orders, 1 address question, 2 spam. Drafted confirmations for the new orders.', action: 'send_message', title: 'Send order confirmations', body: 'Thanks — your order is in the queue. We will confirm the ship date today; if anything on it looks off, we will flag it before printing, not after.' }) },
+  penny: { name: 'Penny', emoji: '🧾', role: '3-way invoice matcher', model: 'claude', keywords: ['invoice', 'match', 'billing', 'inv-', 'price'],
+    work: (brief) => ({ summary: '3-way match: PO says $12.50/sheet, invoice bills $14.20/sheet on 200 sheets = +$340. Quantity matches, so it is a price mismatch.', action: 'flag_invoice_mismatch', title: 'Flag INV-8812 mismatch (+$340)', body: 'Flag to AP + supplier: billed $14.20 vs PO $12.50/sheet, delta $340 on 200 sheets. Hold payment pending a corrected invoice.' }) },
+  stock: { name: 'Stock', emoji: '📊', role: 'Reorder watcher', model: 'ollama:llama3.1', keywords: ['reorder', 'stock', 'inventory', 'low'],
+    work: (brief) => ({ summary: 'Checked stock levels against reorder points: banner vinyl is 2 days from the floor if PO-1041 slips. Drafted a heads-up, no order placed.', action: 'send_message', title: 'Send low-stock heads-up', body: 'Heads-up: banner vinyl hits its reorder floor in ~2 days if PO-1041 slips. No order placed — that decision is yours.' }) },
+};

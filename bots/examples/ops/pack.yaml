@@ -1,0 +1,17 @@
+pack: ops
+name: Job-Shop Ops Pack
+license: MIT
+status: synthetic-demo
+shop_fiction: Delta Sign & Print Co. — make-to-order, 10-40 people
+bots:
+  - chief
+  - otto
+  - iris
+  - penny
+  - stock
+guardrails:
+  never: [pay_invoice, approve_price_change, commit_ship_date]
+  approve: [send_supplier_chase, flag_invoice_mismatch, send_customer_update]
+  auto: [read_inbox, match_invoice, lookup_po, draft_message, log_activity]
+demo_fixture:
+  catch: "INV-8812 billed $14.20/sheet vs $12.50 PO price = +$340 — Penny flags, payment stays Never Auto"

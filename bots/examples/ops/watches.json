@@ -1,0 +1,1 @@
+[{"brief":"A supplier replied — chase the unconfirmed PO thread it belongs to","intervalMin":5,"name":"supplier-replies","target":"inbox","type":"file"},{"brief":"A new invoice arrived — match the invoice against its PO","intervalMin":5,"name":"invoice-drop","target":"inbox/invoices","type":"file"}]
