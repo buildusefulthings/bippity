@@ -1,0 +1,26 @@
+Functional Source License, Version 1.1, Apache 2.0 Future License
+FSL-1.1-ALv2
+
+NOTE: This file states the license under which bippity is offered.
+The canonical FSL-1.1-ALv2 text is maintained by Sentry at
+https://fsl.software/ — in the event of any discrepancy, the canonical
+text controls. Summary of its operative terms:
+
+- Grant: You may use, copy, modify, and share the Software for any
+  Permitted Purpose, free of charge.
+- Permitted Purpose: any purpose except a Competing Use.
+- Competing Use: making the Software available to others in a commercial
+  product or service that substitutes for the Software or for another
+  product or service offered by the Licensor.
+- Internal business use, research, education, and using the Software to
+  provide services *on top of it* for clients who run their own instance
+  are Permitted Purposes.
+- Future license: Two years after each release, that release converts to
+  the Apache License, Version 2.0, and the Competing Use restriction
+  falls away for that release.
+- The Software is provided "as is", without warranty of any kind.
+
+Bot packs under bots/examples/ are licensed separately under MIT
+(see bots/examples/LICENSE-MIT).
+
+Copyright (c) 2026 Mark Cavanaugh and bippity contributors.
