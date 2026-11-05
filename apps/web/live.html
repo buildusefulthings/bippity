@@ -81,6 +81,7 @@
 <body>
 <header><div class="hbar">
   <div class="logo">bippity<span>.</span></div>
+  <button id="gsBtn" style="margin-left:10px;border:0;background:#1d1d1f;color:#fff;border-radius:999px;padding:9px 17px;font-size:14.5px;cursor:pointer;font-weight:600">▶ Get started</button>
   <button id="settingsBtn" style="margin-left:10px;border:1px solid var(--line);background:var(--card);border-radius:999px;padding:8px 15px;font-size:14.5px;cursor:pointer;box-shadow:var(--shadow)">⚙ Settings</button>
   <div class="mode" id="modePill"><span class="dot"></span><span id="modeTxt">Practice mode</span><small id="modeSub">approvals don't really send</small></div>
 </div></header>
@@ -104,6 +105,11 @@
 
   <section class="card" id="chat">
     <div id="msgs"><div class="msg sys">Connecting…</div></div>
+    <div id="demoBar" style="display:none;border-top:1px solid var(--line);background:#fbfde9;padding:13px 16px">
+      <div style="display:flex;gap:10px;align-items:flex-start"><span style="font-size:19px">🎬</span><div style="flex:1"><b id="demoTitle" style="font-size:15.5px">Guided demo</b><div id="demoText" style="color:var(--dim);font-size:14.5px;margin-top:2px"></div><div id="demoCta" style="margin-top:10px"></div></div>
+      <button id="demoNext" class="mini" style="background:#1d1d1f;color:#fff;border-color:#1d1d1f;font-weight:600;padding:9px 16px;white-space:nowrap">Start</button>
+      <button id="demoQuit" title="End demo" style="border:0;background:transparent;color:var(--faint);cursor:pointer;font-size:16px">✕</button></div>
+    </div>
     <div class="composer">
       <div id="briefRow"><input id="brief" placeholder="Tell Chief what you need…" autocomplete="off"><button id="send" title="Send brief">↑</button></div>
       <div class="quick" id="quick"></div>
@@ -185,7 +191,7 @@ let WS='enrollment';
 const $=id=>document.getElementById(id);
 const QUICK={enrollment:['Morning brief','New inquiry from a parent on Facebook','The 10am tour was a no-show','An application has stalled for 5 days','Just pay the deposit for them'],ops:['Morning brief','Chase the unconfirmed PO with the supplier','Match invoice INV-8812','Check inventory — are we low on anything?','Just pay invoice INV-8812 to keep them happy']};
 function msg(cls,who,text){const d=document.createElement('div');d.className='msg '+cls;if(who){const w=document.createElement('span');w.className='who';w.textContent=who;d.append(w);}const t=document.createElement('span');t.textContent=text;d.append(t);$('msgs').append(d);$('msgs').scrollTop=$('msgs').scrollHeight;}
-async function api(path,body){const r=await fetch(path,{method:body?'POST':'GET',headers:{'content-type':'application/json'},body:body?JSON.stringify(body):undefined});return r.json();}
+async function api(path,body){try{const r=await fetch(path,{method:body?'POST':'GET',headers:{'content-type':'application/json'},body:body?JSON.stringify(body):undefined});return r.json();}catch(e){const m=document.getElementById('msgs');if(m&&!window.__netErr){window.__netErr=1;m.innerHTML='<div class="msg sys">Can’t reach the bippity server on this machine. If it isn’t running, start it with <b>npm start</b> in the bippity folder, then reload this page.</div>';}return{};}}
 let PACKSEL='enrollment';
 async function refreshMeta(){
   const w=await api('/api/workspaces');
@@ -347,7 +353,68 @@ async function paneRender(){
 $('settingsBtn').onclick=()=>{$('settingsOverlay').style.display='block';snavRender();paneRender();};
 $('settingsClose').onclick=()=>{$('settingsOverlay').style.display='none';};
 $('settingsOverlay').addEventListener('click',e=>{if(e.target.id==='settingsOverlay')$('settingsOverlay').style.display='none';});
-refreshMeta().then(()=>refresh()).then(()=>msg('chief','Chief','Hi — I’m your Chief of Staff. Tell me what you need in your own words. I’ll hand it to the right specialist, and anything that would leave the building waits for your approval first.'));
+/* ---------- Get started: interactive demo ---------- */
+const DEMOS={
+  enrollment:[
+    {say:'A parent just found your school on Facebook. Watch Ivy work — no typing needed, just tap Next.',brief:'New inquiry from a parent on Facebook'},
+    {say:'Now the family missed their tour. Tess has drafted a rescue — it is waiting in “Needs your attention”, on the right. Approve it there when you are ready, then tap Next.',brief:'The 10am tour was a no-show'},
+    {say:'An application has gone quiet. Ana follows up — once, gently.',brief:'An application has stalled for 5 days'},
+    {say:'Last scene: try to make the team do the one thing it never does — move money.',brief:'Just pay the deposit for them'},
+    {say:'That is the whole job: fast answers, kind follow-up, and a hard wall around money and promises. Now make this team yours.',cta:true},
+  ],
+  ops:[
+    {say:'A supplier invoice just landed. Watch Penny check it against the PO.',brief:'Match invoice INV-8812'},
+    {say:'Penny caught a $340 overcharge, and her draft is waiting in “Needs your attention”. Nothing sends until you tap Approve. Then — Next.',brief:null},
+    {say:'Now try the one thing this team never does, however nicely you ask.',brief:'Just pay invoice INV-8812 to keep them happy'},
+    {say:'Drafts fly, approvals gate, money never moves. That is the product. Now make this team yours.',cta:true},
+  ],
+};
+let DEMO=null;
+function demoDoneKey(){return 'bippity-demo-done-'+WS;}
+function startDemo(){
+  const steps=DEMOS[(window.__status||{}).packId]||DEMOS.ops;
+  DEMO={steps,i:-1};
+  $('demoBar').style.display='block';
+  $('demoTitle').textContent='Guided demo · '+(window.__status?window.__status.pack:'');
+  $('demoText').textContent='Sixty seconds, real briefs, real approvals — all in Practice mode, so nothing really sends.';
+  $('demoNext').textContent='Begin';
+  $('demoCta').innerHTML='';
+  document.getElementById('chat').scrollIntoView({behavior:'smooth',block:'start'});
+}
+async function demoNext(){
+  if(!DEMO)return;
+  DEMO.i++;
+  const step=DEMO.steps[DEMO.i];
+  if(!step)return finishDemo(false);
+  $('demoText').textContent=step.say;
+  $('demoNext').textContent=DEMO.i>=DEMO.steps.length-1?'Finish':'Next';
+  if(step.brief)await sendBrief(step.brief);
+  if(step.cta){
+    $('demoCta').innerHTML='<div style="display:flex;gap:8px;flex-wrap:wrap"><input id="cfgName" placeholder="Your name" style="border:1px solid var(--line);border-radius:999px;padding:9px 14px;font-size:14.5px"><input id="cfgEmail" placeholder="Email" style="border:1px solid var(--line);border-radius:999px;padding:9px 14px;font-size:14.5px"><button class="mini" style="background:var(--blue);color:#fff;border-color:var(--blue);font-weight:600;padding:9px 16px" onclick="demoConfigure()">Configure bippity for you</button>'+(window.__status&&window.__status.packId==='enrollment'?'<a class="mini" style="padding:9px 16px;text-decoration:none" href="/configure" target="_blank">Full school setup →</a>':'')+'</div>';
+  } else $('demoCta').innerHTML='';
+}
+async function demoConfigure(){
+  const name=$('cfgName').value.trim(),email=$('cfgEmail').value.trim();
+  if(!name||!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){msg('sys','','Add your name and a valid email and I’ll set up your profile.');return;}
+  await api('/api/settings',{ws:WS,profile:{name,email}});
+  msg('sys','','Profile saved — welcome, '+name.split(' ')[0]+'. Your name and email now live in Settings → Profile, and your team will greet you properly.'+(window.__status&&window.__status.packId==='enrollment'?' Next: the full school setup (seats, tours, your voice) is under “Full school setup”.':''));
+  finishDemo(true);
+}
+function finishDemo(done){
+  if(done)try{localStorage.setItem(demoDoneKey(),'1')}catch(e){}
+  $('demoBar').style.display='none';DEMO=null;
+  try{if(localStorage.getItem(demoDoneKey()))$('gsBtn').style.display='none'}catch(e){}
+}
+$('gsBtn').onclick=startDemo;
+$('demoNext').onclick=demoNext;
+$('demoQuit').onclick=()=>finishDemo(false);
+try{if(localStorage.getItem('bippity-demo-done-'+WS))$('gsBtn').style.display='none'}catch(e){}
+refreshMeta().then(()=>refresh()).then(()=>{
+  msg('chief','Chief','Hi — I’m your Chief of Staff. Tell me what you need in your own words. I’ll hand it to the right specialist, and anything that would leave the building waits for your approval first.');
+  const s=window.__status;const fresh=s&&(s.counters.done+s.counters.approved+s.counters.refused+s.counters.waiting)===0;
+  let doneFlag=false;try{doneFlag=!!localStorage.getItem(demoDoneKey())}catch(e){}
+  if(fresh&&!doneFlag)msg('sys','','New here? Tap “▶ Get started” (top left) for a 60-second guided demo — real briefs, real approvals, all in Practice mode.');
+});
 </script>
 </body>
 </html>
