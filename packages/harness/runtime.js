@@ -17,6 +17,8 @@ const { FileMemory } = require('../memory/file-memory');
 const { ModelRouter } = require('./model-router');
 const { Chief } = require('../chief/chief');
 const { DeliveryService } = require('../connectors/delivery');
+const { KnowledgeStore } = require('./knowledge');
+const { WorkspaceSettings } = require('./settings');
 
 class Workspace {
   constructor({ pack, dataRoot, env = process.env, delivery = null, workspaceId = null }) {
@@ -26,6 +28,8 @@ class Workspace {
     this.id = workspaceId || pack.id;
     this.dataRoot = dataRoot;
     this.memory = new FileMemory(dataRoot);
+    this.knowledge = new KnowledgeStore(dataRoot);
+    this.settings = new WorkspaceSettings(dataRoot);
     this.models = new ModelRouter(env);
     this.delivery = delivery || new DeliveryService(env);
     this.shadow = env.BIPPITY_SHADOW_MODE !== '0';
@@ -72,17 +76,22 @@ class Workspace {
       this._save();
       return { type: 'refused', action: work.action, message: `${bot.name} proposed "${work.action}", which is Never Auto. Refused in code; nothing queued.`, counters: this.state.counters };
     }
+    // Knowledge: whatever the specialist learned while working is filed
+    // (reference only — it can never widen guardrails). Refused work
+    // teaches nothing.
+    let learned = 0;
+    if (Array.isArray(work.learns)) for (const l of work.learns) { try { this.knowledge.add(this.id, { ...l, source: bot.name }); learned++; } catch { /* bad entry skipped */ } }
     if (d.decision === 'run') {
       this.state.counters.done++;
       this._log({ kind: 'auto', bot: bot.name, action: work.action, title: work.title });
       this._save();
-      return { type: 'done', from: bot.name, message: work.summary, counters: this.state.counters };
+      return { type: 'done', from: bot.name, message: work.summary, learned, counters: this.state.counters };
     }
     const approval = { id: 'a' + (++this.state.seq), bot: bot.name, botId: bot.id, action: work.action, title: work.title, body: work.body, summary: work.summary, deliver: work.deliver || null, at: new Date().toISOString(), status: 'waiting' };
     this.state.approvals.unshift(approval);
     this._log({ kind: 'queued', bot: bot.name, action: work.action, title: work.title });
     this._save();
-    return { type: 'queued', from: bot.name, message: work.summary, approval, counters: this.state.counters };
+    return { type: 'queued', from: bot.name, message: work.summary, approval, learned, counters: this.state.counters };
   }
 
   /**
@@ -118,6 +127,7 @@ class Workspace {
       counters: { ...this.state.counters, waiting: this.state.approvals.filter((a) => a.status === 'waiting').length, neverExecuted: 0 },
       models: this.models.status(this.bots.map((b) => b.model)),
       delivery: this.delivery.status(),
+      knowledge: { total: this.knowledge.list(this.id).length, counts: this.knowledge.counts(this.id) },
     };
   }
 }
