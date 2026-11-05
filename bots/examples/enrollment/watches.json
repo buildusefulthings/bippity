@@ -1,0 +1,1 @@
+[{"brief":"New inquiry from a parent — handle the first response","intervalMin":5,"name":"inquiry-inbox","target":"inbox","type":"file"},{"brief":"Tour schedule changed — check tours and reschedule anything affected","intervalMin":15,"name":"tour-calendar-note","target":"inbox/tours.txt","type":"file"}]

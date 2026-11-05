@@ -1,0 +1,17 @@
+pack: enrollment
+name: Microschool Enrollment Pack
+license: MIT
+status: synthetic-demo
+school_fiction: Willow Creek Microschool — 22 seats, $8,000 tuition, 20 filled
+bots:
+  - chief
+  - ivy
+  - tess
+  - ana
+  - walt
+  - rae
+pipeline: Inquiry -> Tour -> Application -> Shadow Day -> Accepted -> Deposit -> Enrolled -> Re-enrollment
+guardrails:
+  never: [collect_payment, promise_seat, change_tuition]
+  approve: [send_first_response, book_tour, send_application_nudge, offer_waitlist_spot]
+  auto: [read_inquiry, lookup_family, draft_reply, log_activity]

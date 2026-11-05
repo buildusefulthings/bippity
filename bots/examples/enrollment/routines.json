@@ -1,0 +1,1 @@
+[{"at":"07:00","brief":"Morning brief","days":[1,2,3,4,5],"name":"morning-pipeline"},{"at":"16:00","brief":"Check for an application that has stalled","days":[1,2,3,4,5],"name":"stalled-scan"}]

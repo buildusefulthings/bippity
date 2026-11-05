@@ -1,0 +1,15 @@
+// Rich bot definitions for the enrollment pack (roles, models, routing
+// keywords, and offline specialist work). MIT — copy freely.
+module.exports = {
+  chief: { name: 'Chief', emoji: '🧭', role: 'Brief, delegation, daily report', model: 'claude', keywords: [] },
+  ivy: { name: 'Ivy', emoji: '⚡', role: 'First response to inquiries (<60s)', model: 'openai', keywords: ['inquiry', 'inquire', 'new family', 'facebook', 'interested'],
+    work: (brief) => ({ summary: 'Read the inquiry and drafted a first response in 38 seconds (founder baseline ~2.1 days).', action: 'send_message', title: 'Send first response', body: 'Hi — yes, we have 2 seats for fall. Tuition is $8,000/yr, ages 5–11. Tours Thu 10am or Sat 9am — want me to hold one?' }) },
+  tess: { name: 'Tess', emoji: '📅', role: 'Tours: book, remind, rescue no-shows', model: 'grok', keywords: ['tour', 'no-show', 'noshow', 'visit', 'reschedule'],
+    work: (brief) => ({ summary: 'Checked the calendar and drafted a no-show rescue for 2 hours after the miss — not 2 days later, when these go cold.', action: 'send_message', title: 'Send no-show rescue text', body: 'Hi — we missed you at 10. No worries at all, want Thu 4pm or Sat 9am instead? — Tess, Willow Creek' }) },
+  ana: { name: 'Ana', emoji: '📝', role: 'Applications + deposit follow-through', model: 'claude', keywords: ['application', 'stalled', 'deposit', 'form', 'apply'],
+    work: (brief) => ({ summary: "Pulled the family's thread from memory: their daughter asked about the chickens twice on the tour. Drafted a nudge that uses it.", action: 'send_message', title: 'Send application nudge', body: "Hi — your daughter asked about the chickens twice on her tour; she's welcome to come feed them Sat while you finish the last form. Anything blocking it I can clear?" }) },
+  walt: { name: 'Walt', emoji: '🎟️', role: 'Waitlist + late-summer backfill', model: 'ollama:llama3.1', keywords: ['waitlist', 'spot', 'opening', 'backfill'],
+    work: (brief) => ({ summary: 'Checked the waitlist order and drafted an offer to the first family — the seat itself is never promised without your tap.', action: 'offer_waitlist_spot', title: 'Offer waitlist spot', body: 'Hi — a seat may open for fall. If it does, your family is first in line. Can I hold a tour this week so you are ready either way?' }) },
+  rae: { name: 'Rae', emoji: '🔁', role: 'Re-enrollment', model: 'openai', keywords: ['re-enroll', 'reenroll', 'next year', 'returning'],
+    work: (brief) => ({ summary: 'Drafted the re-enrollment note for returning families with this year\'s highlights from memory.', action: 'send_message', title: 'Send re-enrollment note', body: 'Hi — re-enrollment for next year is open. Your seat is held until Mar 1. Reply here and I will send the one-page form.' }) },
+};
