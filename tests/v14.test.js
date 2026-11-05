@@ -8,7 +8,7 @@ let pass = 0; const ok = (n) => { pass++; console.log('  ✓', n); };
 console.log('v0.14 microschool landing');
 const page = fs.readFileSync(path.join(ROOT, 'apps/web/school.html'), 'utf8');
 assert.ok(page.includes('Fill') && page.includes('every') && page.includes('seat.')); ok('hero headline present');
-for (const m of ['NEEDS YOU', 'Done today', 'Start free', '/signup', 'Practice mode', 'Willow Creek']) assert.ok(page.includes(m), 'landing missing: ' + m);
+for (const m of ['NEEDS YOU', 'Done today', 'Configure bippity for your school', '/configure', 'Practice mode', 'Willow Creek']) assert.ok(page.includes(m), 'landing missing: ' + m);
 ok('hero cards + CTAs + honest demo labeling');
 // The eight steps, in order
 const flow = ['Inquiry', 'Tour', 'Application', 'Shadow Day', 'Accepted', 'Deposit', 'Enrolled', 'Re-enrollment'];
