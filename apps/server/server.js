@@ -130,6 +130,7 @@ const server = http.createServer(async (req, res) => {
     if (u.pathname === '/sim') return send(res, 200, fs.readFileSync(path.join(ROOT, 'apps/web/index.html'), 'utf8'), 'text/html');
     if (u.pathname === '/signup' || u.pathname === '/welcome') return send(res, 200, fs.readFileSync(path.join(ROOT, 'apps/web/signup.html'), 'utf8'), 'text/html');
     if (u.pathname === '/school' || u.pathname === '/microschools') return send(res, 200, fs.readFileSync(path.join(ROOT, 'apps/web/school.html'), 'utf8'), 'text/html');
+    if (u.pathname === '/configure' || u.pathname === '/setup') return send(res, 200, fs.readFileSync(path.join(ROOT, 'apps/web/configure.html'), 'utf8'), 'text/html');
     if (u.pathname === '/api/public/signup' && req.method === 'POST') {
       const b = await body(req);
       // Honeypot: real humans never fill the hidden "company_website" field.
@@ -144,12 +145,33 @@ const server = http.createServer(async (req, res) => {
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return send(res, 400, { error: 'A valid email is required.' });
       if (!b.name || !b.pack) return send(res, 400, { error: 'Name and pack are required.' });
       signupHits[ip].push(now);
+      // Microschool setup wizard (/configure): a structured school profile
+      // that becomes the tenant's context — written into the workspace as
+      // SCHOOL.md + Knowledge, so the bots genuinely work from it.
+      let profile = null;
+      if (b.school && typeof b.school === 'object') {
+        const S = (v, n) => String(v == null ? '' : v).slice(0, n);
+        const L = (v, n) => (Array.isArray(v) ? v.map((x) => S(x, 40)).filter(Boolean).slice(0, n) : []);
+        profile = { kind: 'microschool', schoolName: S(b.school.schoolName, 90), city: S(b.school.city, 60), ages: L(b.school.ages, 6), seats: S(b.school.seats, 6), seatsOpen: S(b.school.seatsOpen, 6), tuition: S(b.school.tuition, 40), tourDays: L(b.school.tourDays, 7), tourTimes: S(b.school.tourTimes, 120), approach: L(b.school.approach, 6), about: S(b.school.about, 1200), faqs: S(b.school.faqs, 1200), neverPromise: L(b.school.neverPromise, 8), neverNotes: S(b.school.neverNotes, 400), channels: L(b.school.channels, 6), founderName: S(b.school.founderName, 80) };
+        if (!profile.schoolName) profile = null;
+      }
       const wantPlan = ['free', 'pro', 'max'].includes(b.plan) ? b.plan : 'free';
       const base = process.env.PUBLIC_BASE_URL || `http://${req.headers.host || '127.0.0.1:' + PORT}`;
-      const r = provisionTenant({ registry: hostedRegistry, vault: hostedVault, meter: hostedMeter, dataRoot: DATA, packsRoot: PACKS_ROOT, relayBase: process.env.PUBLIC_RELAY_BASE || base, name: String(b.name).slice(0, 80), email, plan: 'free', pack: String(b.pack), vars: b.vars || {}, workspaceName: b.workspace, targetUrl: b.targetUrl || '', status: wantPlan === 'free' ? 'active' : 'pending' });
+      const r = provisionTenant({ registry: hostedRegistry, vault: hostedVault, meter: hostedMeter, dataRoot: DATA, packsRoot: PACKS_ROOT, relayBase: process.env.PUBLIC_RELAY_BASE || base, name: String(b.name).slice(0, 80), email, plan: 'free', pack: String(b.pack), vars: b.vars || {}, workspaceName: b.workspace, targetUrl: b.targetUrl || '', status: wantPlan === 'free' ? 'active' : 'pending', profile });
       if (!r.ok) return send(res, 400, r);
       const packDir = path.join(DATA, 'workspaces', r.tenant.workspace, 'pack');
       if (!workspaces[r.tenant.workspace] && fs.existsSync(path.join(packDir, 'pack.yaml'))) registerWorkspace(r.tenant.workspace, new Workspace({ pack: loadPack(packDir), dataRoot: DATA, workspaceId: r.tenant.workspace }), packDir);
+      if (profile && workspaces[r.tenant.workspace]) {
+        const wsx = workspaces[r.tenant.workspace];
+        const md = ['# ' + profile.schoolName, '', `Location: ${profile.city || '—'} · Ages: ${profile.ages.join(', ') || '—'} · Seats: ${profile.seats || '—'} (${profile.seatsOpen || '—'} open) · Tuition: ${profile.tuition || '—'}`, `Tours: ${profile.tourDays.join(', ') || '—'} — ${profile.tourTimes || '—'}`, `Approach: ${profile.approach.join(', ') || '—'}`, '', '## What makes this school special', profile.about || '—', '', '## Questions families always ask', profile.faqs || '—', '', '## Never promise', (profile.neverPromise.join(', ') || '—') + (profile.neverNotes ? ' — ' + profile.neverNotes : ''), '', `Inquiries arrive via: ${profile.channels.join(', ') || '—'}`].join('\n');
+        try { fs.writeFileSync(path.join(DATA, 'workspaces', wsx.id, 'SCHOOL.md'), md); } catch { /* non-fatal */ }
+        try {
+          wsx.knowledge.add(wsx.id, { type: 'companies', title: profile.schoolName, detail: `${profile.city} · ${profile.seats} seats, ${profile.seatsOpen} open · tuition ${profile.tuition}`, source: 'Setup wizard' });
+          if (profile.about) wsx.knowledge.add(wsx.id, { type: 'preferences', title: 'What makes the school special', detail: profile.about.slice(0, 600), source: 'Setup wizard' });
+          for (const np of profile.neverPromise) wsx.knowledge.add(wsx.id, { type: 'decisions', title: 'Never promise: ' + np, detail: 'Set by the founder in the setup wizard. Bots must not commit to this; escalate to the founder.', source: 'Setup wizard' });
+          wsx.settings.update(wsx.id, { profile: { name: profile.founderName || String(b.name), email } });
+        } catch { /* non-fatal */ }
+      }
       let checkout = null;
       if (wantPlan !== 'free') { const t = hostedRegistry.byId(r.tenant.id); try { checkout = await billing.createCheckout({ tenant: t, plan: wantPlan, successUrl: base + '/welcome?tenant=' + t.id, cancelUrl: base + '/signup' }); } catch (e) { checkout = { error: e.message }; } }
       const full = hostedRegistry.byId(r.tenant.id);
@@ -160,7 +182,7 @@ const server = http.createServer(async (req, res) => {
     if (u.pathname === '/api/public/status') {
       const t = hostedRegistry.byId(q.tenant);
       if (!t || !q.token || q.token !== t.relayToken) return send(res, 401, { error: 'tenant + token required' });
-      return send(res, 200, { tenant: t.id, name: t.name, plan: t.plan, status: t.status, workspaces: t.workspaces, usage: hostedMeter.summary(t.id) });
+      return send(res, 200, { tenant: t.id, name: t.name, plan: t.plan, status: t.status, workspaces: t.workspaces, usage: hostedMeter.summary(t.id), profile: t.profile || null });
     }
     if (u.pathname === '/api/status') return send(res, 200, wsOf(q).status());
     if (u.pathname === '/api/workspaces') return send(res, 200, { workspaces: Object.values(workspaces).map((w) => ({ id: w.id, pack: w.pack.id, name: w.pack.name, installed: !!listInstalled(DATA).find((m) => m.workspace === w.id) })) });
