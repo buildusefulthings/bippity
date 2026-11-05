@@ -5,31 +5,32 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>bippity — hosted bot teams</title>
 <style>
-  :root { --ink:#10131a; --dim:#5b6472; --card:#fff; --line:#e3e7ee; --bg:#f4f6fa; --brand:#5b5bd6; --ok:#137a4b; --bad:#b3261e; }
-  * { box-sizing:border-box; } body { margin:0; font:16px/1.55 -apple-system, "Segoe UI", Roboto, sans-serif; color:var(--ink); background:var(--bg); }
-  .wrap { max-width:880px; margin:0 auto; padding:20px 16px 60px; }
-  h1 { font-size:34px; margin:18px 0 6px; letter-spacing:-.5px; } h2 { margin:28px 0 8px; font-size:21px; }
-  .sub { color:var(--dim); font-size:17px; max-width:640px; }
-  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:12px; margin-top:12px; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; }
-  .price { font-size:26px; font-weight:700; } .per { color:var(--dim); font-size:14px; }
-  ul { margin:8px 0 0; padding-left:18px; } li { margin:3px 0; }
-  label { display:block; font-size:13px; color:var(--dim); margin:12px 0 4px; }
-  input, select { width:100%; padding:10px; border:1px solid var(--line); border-radius:8px; font-size:16px; background:#fff; }
-  button { background:var(--brand); color:#fff; border:0; border-radius:9px; padding:12px 18px; font-size:16px; cursor:pointer; margin-top:16px; width:100%; }
-  button:disabled { opacity:.55; }
+  :root { --ink:#1d1d1f; --dim:#6e6e73; --card:#fff; --line:rgba(0,0,0,.07); --bg:#f5f5f7; --brand:#0071e3; --brand-d:#0060c9; --ok:#14532d; }
+  * { box-sizing:border-box; } body { margin:0; font:17px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif; color:var(--ink); background:var(--bg); -webkit-font-smoothing:antialiased; }
+  .wrap { max-width:920px; margin:0 auto; padding:28px 18px 64px; }
+  h1 { font-size:38px; margin:14px 0 8px; letter-spacing:-.6px; font-weight:700; } h2 { margin:34px 0 10px; font-size:22px; letter-spacing:-.3px; }
+  .sub { color:var(--dim); font-size:17.5px; max-width:660px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px; margin-top:14px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:20px; padding:20px; box-shadow:0 1px 2px rgba(0,0,0,.04),0 10px 30px rgba(0,0,0,.05); }
+  .price { font-size:28px; font-weight:700; letter-spacing:-.4px; } .per { color:var(--dim); font-size:14px; }
+  ul { margin:10px 0 0; padding-left:19px; } li { margin:4px 0; }
+  label { display:block; font-size:13.5px; color:var(--dim); margin:14px 0 5px; }
+  input, select { width:100%; padding:12px 14px; border:1px solid var(--line); border-radius:12px; font-size:16.5px; background:#fbfbfd; outline:none; }
+  input:focus, select:focus { border-color:var(--brand); box-shadow:0 0 0 4px rgba(0,113,227,.12); background:#fff; }
+  button { background:var(--brand); color:#fff; border:0; border-radius:999px; padding:13px 20px; font-size:16.5px; font-weight:600; cursor:pointer; margin-top:18px; width:100%; }
+  button:hover { background:var(--brand-d); } button:disabled { opacity:.55; }
   .hp { position:absolute; left:-9999px; width:1px; height:1px; opacity:0; }
-  .ok { background:#e9f7ef; border:1px solid #bfe6cf; color:var(--ink); border-radius:10px; padding:14px; margin-top:16px; word-break:break-all; }
-  .err { background:#fdecea; border:1px solid #f3c1bd; border-radius:10px; padding:12px; margin-top:16px; }
+  .ok { background:#e9f8ee; border:1px solid #bfe6cf; border-radius:14px; padding:15px; margin-top:16px; word-break:break-all; }
+  .err { background:#fdf0ef; border:1px solid #f3c1bd; border-radius:14px; padding:13px; margin-top:16px; }
   .mono { font-family:ui-monospace, Menlo, monospace; font-size:13px; }
-  .tiers { font-size:14px; } .guard { border-left:4px solid var(--brand); }
-  footer { color:var(--dim); font-size:13px; margin-top:36px; }
-  a { color:var(--brand); }
+  .tiers { font-size:15px; } .guard { border-left:5px solid var(--brand); }
+  footer { color:var(--dim); font-size:13.5px; margin-top:40px; }
+  a { color:var(--brand); text-decoration:none; } a:hover { text-decoration:underline; }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>🤖 bippity, hosted</h1>
+  <h1>bippity, hosted</h1>
   <p class="sub">A Chief and a team of specialist bots for your business — answering inquiries, chasing POs, matching invoices — with one rule that never bends: <b>bots propose, humans approve, money never moves on its own.</b> The code is <a href="https://github.com/buildusefulthings/bippity">open on GitHub</a>; hosting is the part you pay for.</p>
 
   <h2>Pick your team</h2>

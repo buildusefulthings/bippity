@@ -3,134 +3,299 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>bippity — live runtime</title>
+<title>bippity</title>
 <style>
-  :root{--bg:#0f1115;--panel:#171a21;--panel2:#1e222c;--line:#2a2f3a;--txt:#e8eaf0;--dim:#9aa3b2;--acc:#7dd87d;--warn:#ffd166;--bad:#ff7b7b;--blue:#7ab8ff}
+  :root{
+    --bg:#f5f5f7; --card:#ffffff; --txt:#1d1d1f; --dim:#6e6e73; --faint:#86868b;
+    --line:rgba(0,0,0,.07); --blue:#0071e3; --blue-d:#0060c9;
+    --green:#248a3d; --green-bg:#e9f8ee; --amber-bg:#fff8e5; --amber-line:#ecd28f;
+    --red:#c0271a; --red-bg:#fdf0ef; --bubble:#e9e9ee;
+    --shadow:0 1px 2px rgba(0,0,0,.04),0 10px 30px rgba(0,0,0,.05);
+    --r:20px;
+  }
   *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--txt);font-size:15px;line-height:1.45}
-  header{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
-  .logo{font-size:24px;font-weight:800;letter-spacing:-.5px}.logo span{color:var(--acc)}
-  .tag{color:var(--dim);font-size:13px}
-  .stats{display:flex;gap:10px;flex-wrap:wrap}
-  .stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 12px;text-align:center;min-width:86px}
-  .stat b{display:block;font-size:19px}.stat small{color:var(--dim);font-size:11px;text-transform:uppercase}
-  .stat.never b{color:var(--acc)}
-  main{display:grid;grid-template-columns:260px 1fr 330px;gap:14px;padding:14px;max-width:1400px;margin:0 auto}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
-  .card h2{font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:var(--dim);margin-bottom:10px}
-  button{cursor:pointer;border:1px solid var(--line);background:var(--panel2);color:var(--txt);border-radius:9px;padding:9px 12px;font-size:14px}
-  button:hover{border-color:var(--acc)} button:disabled{opacity:.45}
-  .packbtns{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}.packbtns button{text-align:left}
-  .packbtns button.on{border-color:var(--acc);background:#22301f}
-  .bot{display:flex;gap:10px;padding:9px 8px;border-radius:9px;align-items:flex-start}
-  .avatar{width:34px;height:34px;border-radius:50%;background:#2c3444;display:flex;align-items:center;justify-content:center;font-size:17px;flex:none}
-  .bot b{font-size:14px}.bot .role{display:block;color:var(--dim);font-size:12px}
-  .pill{display:inline-block;font-size:11px;border-radius:20px;padding:0 7px;margin-top:3px;border:1px solid #2c425f;color:var(--blue)}
-  .pill.off{border-color:#4a3b2c;color:var(--warn)}
-  #chat{display:flex;flex-direction:column;height:600px}
-  #msgs{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:10px}
-  .msg{max-width:88%;padding:10px 12px;border-radius:12px;font-size:14px;white-space:pre-wrap}
-  .msg .who{font-size:11px;color:var(--dim);display:block;margin-bottom:3px}
-  .msg.chief{background:#22301f;align-self:flex-start;border:1px solid #33512e}
-  .msg.bot{background:var(--panel2);align-self:flex-start;border:1px solid var(--line)}
-  .msg.user{background:#20314d;align-self:flex-end;border:1px solid #2e4a77}
-  .msg.bad{background:#2a1717;align-self:flex-start;border:1px solid #6e3232}
-  .msg.sys{background:transparent;color:var(--dim);align-self:center;font-size:12px;text-align:center;border:none}
-  #briefRow{display:flex;gap:8px;margin-top:12px}
-  #brief{flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:9px;color:var(--txt);padding:10px 12px;font-size:14px}
-  .quick{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.quick button{font-size:12px;padding:6px 9px}
-  .approval{border:1px solid #6b5a2e;background:#262014;border-radius:10px;padding:11px;margin-bottom:10px}
-  .approval p{font-size:13px;color:#e6ddc2;margin:5px 0 9px;white-space:pre-wrap}
-  .approval .acts{display:flex;gap:8px}.approval .acts button{flex:1}
-  .approval .ok{background:#234023;border-color:#356b35}
-  .doneItem{font-size:13px;color:var(--dim);padding:6px 0;border-bottom:1px dashed #232833}
-  #log{font-size:12px;color:var(--dim);max-height:280px;overflow-y:auto}
-  #log div{padding:4px 0;border-bottom:1px dashed #232833}
-  .empty{color:var(--dim);font-size:13px}
-  footer{padding:10px 20px 22px;color:var(--dim);font-size:12px;text-align:center}
-  @media (max-width:980px){main{grid-template-columns:1fr}#chat{height:520px}}
+  body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--txt);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  header{position:sticky;top:0;z-index:5;backdrop-filter:saturate(1.8) blur(20px);background:rgba(245,245,247,.75);border-bottom:1px solid var(--line)}
+  .hbar{max-width:1240px;margin:0 auto;padding:14px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .logo{font-size:23px;font-weight:700;letter-spacing:-.4px}.logo span{color:var(--blue)}
+  .mode{margin-left:auto;display:flex;align-items:center;gap:9px;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 12px;box-shadow:var(--shadow);font-size:14px}
+  .dot{width:9px;height:9px;border-radius:50%;background:#e6a817}
+  .mode.live .dot{background:#30c24b}
+  .mode small{color:var(--dim)}
+  main{max-width:1240px;margin:0 auto;padding:18px 20px 26px;display:grid;grid-template-columns:250px minmax(0,1fr) 320px;gap:16px;align-items:start}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:18px}
+  h2{font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--faint);margin:0 0 12px}
+  .wsrow{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:transparent;border:0;border-radius:12px;padding:10px 12px;font-size:16px;cursor:pointer;color:var(--txt)}
+  .wsrow:hover{background:#f0f0f3}.wsrow.on{background:#e8f1fd;font-weight:600}
+  .wsrow .cnt{margin-left:auto;background:#ff9f0a;color:#fff;font-size:12px;font-weight:700;border-radius:999px;min-width:22px;height:22px;display:flex;align-items:center;justify-content:center;padding:0 6px}
+  .bot{display:flex;gap:11px;padding:8px 4px;align-items:center}
+  .avatar{width:38px;height:38px;border-radius:50%;background:linear-gradient(180deg,#f2f2f7,#e4e4ea);display:flex;align-items:center;justify-content:center;font-size:18px;flex:none}
+  .bot b{font-size:15px;display:block;line-height:1.25}.bot .role{color:var(--dim);font-size:13px;display:block;line-height:1.3}
+  .bot .model{margin-left:auto;font-size:12px;color:var(--faint);white-space:nowrap}
+  .bot .model.live{color:var(--green)}
+  details{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+  details summary{cursor:pointer;color:var(--dim);font-size:14px}
+  details .inner{font-size:13.5px;color:var(--dim);padding-top:10px;line-height:1.6}
+  details input[type=text]{width:100%;border:1px solid var(--line);border-radius:10px;padding:9px 11px;font-size:14px;margin:6px 0;background:#fbfbfd}
+  .mini{font-size:13px;padding:8px 12px;border-radius:999px;border:1px solid var(--line);background:#fbfbfd;cursor:pointer}
+  .mini:hover{border-color:var(--blue);color:var(--blue)}
+  /* chat */
+  #chat{display:flex;flex-direction:column;height:calc(100vh - 130px);min-height:480px;padding:0;overflow:hidden}
+  #msgs{flex:1;overflow-y:auto;padding:20px 20px 8px;display:flex;flex-direction:column;gap:8px}
+  .msg{max-width:82%;padding:11px 15px;border-radius:22px;font-size:15.5px;white-space:pre-wrap;word-break:break-word}
+  .msg .who{font-size:12px;color:var(--faint);display:block;margin-bottom:2px;font-weight:600}
+  .msg.bot{background:var(--bubble);align-self:flex-start;border-bottom-left-radius:7px}
+  .msg.chief{background:var(--green-bg);align-self:flex-start;border-bottom-left-radius:7px}
+  .msg.user{background:var(--blue);color:#fff;align-self:flex-end;border-bottom-right-radius:7px}
+  .msg.bad{background:var(--red-bg);color:var(--red);align-self:flex-start;border-bottom-left-radius:7px}
+  .msg.sys{background:transparent;color:var(--faint);align-self:center;font-size:13px;text-align:center;box-shadow:none}
+  .composer{padding:12px 14px 14px;border-top:1px solid var(--line);background:rgba(255,255,255,.7)}
+  #briefRow{display:flex;gap:9px;align-items:center}
+  #brief{flex:1;border:1px solid var(--line);border-radius:999px;padding:12px 17px;font-size:16px;background:#fff;outline:none}
+  #brief:focus{border-color:var(--blue);box-shadow:0 0 0 4px rgba(0,113,227,.12)}
+  #send{width:42px;height:42px;flex:none;border-radius:50%;border:0;background:var(--blue);color:#fff;font-size:19px;cursor:pointer;line-height:1}
+  #send:hover{background:var(--blue-d)} #send:disabled{opacity:.4}
+  .quick{display:flex;flex-wrap:wrap;gap:7px;margin-top:11px}
+  .quick button{font-size:13.5px;padding:7px 13px;border-radius:999px;border:1px solid var(--line);background:#fff;cursor:pointer;color:var(--txt)}
+  .quick button:hover{border-color:var(--blue);color:var(--blue)}
+  /* attention */
+  .attn-n{font-size:15px;color:var(--dim);margin-bottom:10px}
+  .approval{background:var(--amber-bg);border:1px solid var(--amber-line);border-radius:16px;padding:14px;margin-bottom:12px}
+  .approval b{font-size:15px}
+  .approval p{font-size:14px;color:#5c4a12;margin:6px 0 12px;white-space:pre-wrap}
+  .approval .acts{display:flex;gap:8px}
+  .approval .acts button{flex:1;border-radius:999px;padding:10px;font-size:15px;cursor:pointer;border:1px solid transparent}
+  .approval .ok{background:var(--blue);color:#fff;font-weight:600}
+  .approval .ok:hover{background:var(--blue-d)}
+  .approval .hold{background:transparent;border-color:rgba(0,0,0,.15);color:var(--txt)}
+  .doneItem{font-size:14px;color:var(--dim);padding:8px 0;border-bottom:1px solid var(--line)}
+  .doneItem:last-child{border-bottom:0}
+  #log{font-size:13.5px;color:var(--dim)}
+  #log div{padding:6px 0;border-bottom:1px solid var(--line)} #log div:last-child{border-bottom:0}
+  .empty{color:var(--faint);font-size:14.5px}
+  .shield{margin-top:14px;background:var(--green-bg);border-radius:14px;padding:11px 13px;font-size:13.5px;color:#14532d}
+  footer{max-width:1240px;margin:0 auto;padding:0 20px 26px;color:var(--faint);font-size:13px;text-align:center}
+  @media (max-width:1020px){main{grid-template-columns:1fr}#chat{height:70vh;order:-1}}
 </style>
 </head>
 <body>
-<header>
-  <div><div class="logo">bippity<span>.</span> live</div>
-  <div class="tag">v0.2 runtime — real server, real guardrails, file memory. Shadow mode: approved actions are logged as sent, not transmitted. <a href="/sim" style="color:var(--blue)">v0.1 simulation →</a></div></div>
-  <div class="stats">
-    <div class="stat"><b id="stDone">0</b><small>Done</small></div>
-    <div class="stat"><b id="stAppr">0</b><small>Approved</small></div>
-    <div class="stat"><b id="stWait">0</b><small>Waiting on you</small></div>
-    <div class="stat"><b id="stRef">0</b><small>Refused</small></div>
-    <div class="stat never"><b id="stNever">0</b><small>Never Auto executed</small></div>
-  </div>
-</header>
+<header><div class="hbar">
+  <div class="logo">bippity<span>.</span></div>
+  <button id="settingsBtn" style="margin-left:10px;border:1px solid var(--line);background:var(--card);border-radius:999px;padding:8px 15px;font-size:14.5px;cursor:pointer;box-shadow:var(--shadow)">⚙ Settings</button>
+  <div class="mode" id="modePill"><span class="dot"></span><span id="modeTxt">Practice mode</span><small id="modeSub">approvals don't really send</small></div>
+</div></header>
 <main>
-  <section class="card">
-    <h2>Workspace</h2>
-    <div class="packbtns" id="wsbtns"><p class="empty">Loading…</p></div>
-    <h2>Install a pack</h2>
-    <div id="packs" class="empty">Loading…</div>
-    <div style="display:flex;gap:6px;margin:8px 0 14px"><input id="wsname" placeholder="new workspace name" style="flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:9px;color:var(--txt);padding:8px 10px;font-size:13px"><button id="installBtn" style="font-size:13px">Install</button></div>
-    <h2>Team</h2><div id="team"><p class="empty">Loading…</p></div>
-    <h2 style="margin-top:14px">Models</h2><div id="models" class="empty"></div>
-  </section>
+  <aside class="card">
+    <h2>Workspaces</h2>
+    <div id="wsbtns"><p class="empty">Loading…</p></div>
+    <h2 style="margin-top:18px">Your team</h2>
+    <div id="team"><p class="empty">Loading…</p></div>
+    <div class="shield">🛡️ <b>Money is always blocked.</b><br>Bots can draft and propose — only you can approve a send, and payments are refused outright.</div>
+    <details><summary>More — install packs, watches, models</summary><div class="inner">
+      <b>Install a pack</b>
+      <div id="packs" style="margin-top:6px">Loading…</div>
+      <input type="text" id="wsname" placeholder="New workspace name">
+      <button class="mini" id="installBtn">Install pack</button>
+      <div style="margin-top:14px"><b>Watches</b><div id="watches" style="margin-top:4px"></div>
+      <button class="mini" id="tickBtn" style="margin-top:6px">Check watches now</button></div>
+      <div style="margin-top:14px"><b>Models &amp; sending</b><div id="models" style="margin-top:4px"></div></div>
+    </div></details>
+  </aside>
+
   <section class="card" id="chat">
-    <h2>Brief Chief — in your own words</h2>
-    <div id="msgs"><div class="msg sys">Connecting to the runtime…</div></div>
-    <div id="briefRow"><input id="brief" placeholder="e.g. New inquiry from a parent on Facebook" autocomplete="off"><button id="send" class="primary" style="background:#234023;border-color:#356b35">Brief →</button></div>
-    <div class="quick" id="quick"></div>
+    <div id="msgs"><div class="msg sys">Connecting…</div></div>
+    <div class="composer">
+      <div id="briefRow"><input id="brief" placeholder="Tell Chief what you need…" autocomplete="off"><button id="send" title="Send brief">↑</button></div>
+      <div class="quick" id="quick"></div>
+    </div>
   </section>
+
   <aside>
-    <section class="card" style="margin-bottom:14px"><h2>Approvals inbox</h2><div id="approvals"><p class="empty">Loading…</p></div></section>
-    <section class="card" style="margin-bottom:14px"><h2>Watches</h2><div id="watches"><p class="empty">Loading…</p></div><button id="tickBtn" style="margin-top:8px;font-size:13px">Check watches now</button></section>
-    <section class="card"><h2>Activity log</h2><div id="log"></div></section>
+    <section class="card" style="margin-bottom:16px">
+      <h2>Needs your attention</h2>
+      <div id="approvals"><p class="empty">Loading…</p></div>
+      <div id="counts" class="attn-n" style="margin-top:10px"></div>
+    </section>
+    <section class="card"><h2>Recent activity</h2><div id="log"></div></section>
   </aside>
 </main>
-<footer>State persists on the server under .data/workspaces/. Bots without a model key run in deterministic offline mode — add keys in .env.local to go live per bot.</footer>
+<section class="card" style="max-width:1240px;margin:0 auto 18px;width:calc(100% - 40px)">
+  <h2 style="font-size:20px;text-transform:none;letter-spacing:-.2px;color:var(--txt);margin-bottom:2px">Routines</h2>
+  <p style="color:var(--dim);font-size:14.5px;margin-bottom:14px">What your bots do on their own. Anything a routine produces still waits for your approval before it sends.</p>
+  <div id="rlist"><p class="empty">Loading…</p></div>
+  <div class="quick" id="rchips" style="margin:14px 0 10px"></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <input id="rtext" placeholder="Every weekday at 8:30, summarize my inbox" style="flex:1;min-width:220px;border:1px solid var(--line);border-radius:999px;padding:11px 16px;font-size:15px">
+    <button class="mini" id="radd" style="background:var(--blue);color:#fff;border-color:var(--blue);font-weight:600;padding:11px 18px">Add routine</button>
+  </div>
+  <div id="rerr" style="color:var(--red);font-size:14px;margin-top:8px"></div>
+</section>
+<section class="card" style="max-width:1240px;margin:0 auto 18px;width:calc(100% - 40px)">
+  <h2 style="font-size:20px;text-transform:none;letter-spacing:-.2px;color:var(--txt);margin-bottom:2px">Knowledge</h2>
+  <p style="color:var(--dim);font-size:14.5px;margin-bottom:14px">What your team has learned and filed away — people, companies, decisions, promises and more. Bots add to this as they work; you can add too. It's reference, never permission: knowledge can't widen what a bot is allowed to do.</p>
+  <div class="quick" id="kpills" style="margin:0 0 12px"></div>
+  <div id="klist"><p class="empty">Loading…</p></div>
+  <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+    <select id="ktype" style="border:1px solid var(--line);border-radius:999px;padding:10px 12px;font-size:14.5px;background:#fff"></select>
+    <input id="ktitle" placeholder="Add something worth remembering…" style="flex:1;min-width:200px;border:1px solid var(--line);border-radius:999px;padding:10px 16px;font-size:15px">
+    <button class="mini" id="kadd" style="background:var(--blue);color:#fff;border-color:var(--blue);font-weight:600;padding:10px 18px">Add</button>
+  </div>
+</section>
+<div id="settingsOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.28);z-index:50;padding:22px;overflow:auto">
+  <div style="max-width:1020px;margin:0 auto;background:#fff;border-radius:24px;box-shadow:0 24px 70px rgba(0,0,0,.25);display:grid;grid-template-columns:250px 1fr;min-height:560px;overflow:hidden">
+    <aside style="background:#fbfbfd;border-right:1px solid var(--line);padding:20px 14px">
+      <button id="settingsClose" style="border:0;background:transparent;font-size:15px;color:var(--dim);cursor:pointer;margin-bottom:14px">‹ Settings</button>
+      <div style="display:flex;gap:11px;align-items:center;padding:2px 8px 16px">
+        <div id="profAvatar" style="width:44px;height:44px;border-radius:50%;background:#1d1d1f;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700">You</div>
+        <div><b id="profName" style="font-size:16px">You</b><div id="profEmail" style="color:var(--dim);font-size:13px">this machine</div></div>
+      </div>
+      <div class="snav-group">Account</div>
+      <div id="snavAccount"></div>
+      <div class="snav-group">Workspace</div>
+      <div id="snavWs"></div>
+    </aside>
+    <section style="padding:26px 28px;overflow:auto" id="spane"><p class="empty">Loading…</p></section>
+  </div>
+</div>
+<style>
+  .snav-group{font-size:12.5px;color:var(--faint);font-weight:600;margin:14px 8px 6px;text-transform:none}
+  .snav{display:flex;gap:10px;align-items:center;width:100%;text-align:left;border:0;background:transparent;padding:9px 10px;border-radius:11px;font-size:15px;cursor:pointer;color:var(--txt)}
+  .snav:hover{background:#f0f0f3}.snav.on{background:#ececf0;font-weight:600}
+  .snav .n{margin-left:auto;color:var(--faint);font-size:13px}
+  .seg{display:inline-flex;background:#ececf0;border-radius:999px;padding:3px}
+  .seg button{border:0;background:transparent;padding:7px 15px;border-radius:999px;font-size:14.5px;cursor:pointer}
+  .seg button.on{background:#fff;font-weight:600;box-shadow:0 1px 4px rgba(0,0,0,.15)}
+  .orgcard{background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:16px;text-align:center}
+  .orggrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-top:10px}
+  .dashcard{border:1.6px dashed #c7c7cc;border-radius:18px;padding:18px 12px;text-align:center;color:var(--dim)}
+  .vline{width:2px;height:26px;background:#d8d8de;margin:0 auto}
+  .srow{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);font-size:15px;align-items:baseline}
+  .srow b{min-width:170px} .srow span{color:var(--dim)}
+  @media (max-width:820px){#settingsOverlay>div{grid-template-columns:1fr}}
+</style>
+<footer>Your state is saved on this machine. In Practice mode nothing really sends — flip to Live in <span class="mono">.env.local</span> when you're ready. <a href="/sim" style="color:var(--blue)">Guided demo →</a> · <a href="/signup" style="color:var(--blue)">Hosted signup →</a></footer>
 <script>
 "use strict";
 let WS='enrollment';
 const $=id=>document.getElementById(id);
 const QUICK={enrollment:['Morning brief','New inquiry from a parent on Facebook','The 10am tour was a no-show','An application has stalled for 5 days','Just pay the deposit for them'],ops:['Morning brief','Chase the unconfirmed PO with the supplier','Match invoice INV-8812','Check inventory — are we low on anything?','Just pay invoice INV-8812 to keep them happy']};
-function msg(cls,who,text){const d=document.createElement('div');d.className='msg '+cls;const w=document.createElement('span');w.className='who';w.textContent=who;const t=document.createElement('span');t.textContent=text;d.append(w,t);$('msgs').append(d);$('msgs').scrollTop=$('msgs').scrollHeight;}
+function msg(cls,who,text){const d=document.createElement('div');d.className='msg '+cls;if(who){const w=document.createElement('span');w.className='who';w.textContent=who;d.append(w);}const t=document.createElement('span');t.textContent=text;d.append(t);$('msgs').append(d);$('msgs').scrollTop=$('msgs').scrollHeight;}
 async function api(path,body){const r=await fetch(path,{method:body?'POST':'GET',headers:{'content-type':'application/json'},body:body?JSON.stringify(body):undefined});return r.json();}
 let PACKSEL='enrollment';
 async function refreshMeta(){
   const w=await api('/api/workspaces');
-  $('wsbtns').innerHTML=w.workspaces.map(x=>'<button data-ws="'+x.id+'" class="'+(x.id===WS?'on':'')+'">'+(x.pack==='enrollment'?'🏫':x.pack==='ops'?'🖨️':'📦')+' '+x.id+(x.installed?' (installed)':'')+'</button>').join('');
-  document.querySelectorAll('[data-ws]').forEach(b=>b.onclick=()=>{WS=b.dataset.ws;$('msgs').innerHTML='';msg('sys','','Switched to workspace "'+WS+'" — state is separate per workspace.');refresh();});
+  $('wsbtns').innerHTML=w.workspaces.map(x=>'<button class="wsrow'+(x.id===WS?' on':'')+'" data-ws="'+x.id+'"><span>'+(x.pack==='enrollment'?'🏫':x.pack==='ops'?'🏭':'📦')+'</span> '+x.id+(x.id===WS&&window.__wait?'<span class="cnt">'+window.__wait+'</span>':'')+'</button>').join('');
+  document.querySelectorAll('[data-ws]').forEach(b=>b.onclick=()=>{WS=b.dataset.ws;$('msgs').innerHTML='';msg('sys','','Switched to “'+WS+'”. Each workspace keeps its own team, memory and approvals.');refresh();});
   const p=await api('/api/packs');
-  $('packs').innerHTML=p.available.map(x=>'<label style="display:block;font-size:13px;padding:3px 0"><input type="radio" name="packsel" value="'+x.id+'" '+(x.id===PACKSEL?'checked':'')+'> '+x.name+' — '+x.bots+' bots</label>').join('')+(p.installed.length?'<div style="margin-top:6px">Installed: '+p.installed.map(m=>m.workspace).join(', ')+'</div>':'');
+  $('packs').innerHTML=p.available.map(x=>'<label style="display:block;padding:3px 0"><input type="radio" name="packsel" value="'+x.id+'" '+(x.id===PACKSEL?'checked':'')+'> '+x.name+' — '+x.bots+' bots</label>').join('')+(p.installed.length?'<div style="margin-top:6px">Installed: '+p.installed.map(m=>m.workspace).join(', ')+'</div>':'');
   document.querySelectorAll('[name=packsel]').forEach(r=>r.onchange=()=>PACKSEL=r.value);
   const wt=await api('/api/watches?ws='+WS);
-  $('watches').innerHTML=wt.watches.length?wt.watches.map(x=>'<div class="doneItem">👁 '+x.name+' · '+x.type+' · '+x.target+(x.last?' · last fired '+String(x.last.at).slice(0,16).replace("T"," ")+' ('+x.result+')':' · not fired yet')+'</div>').join(''):'<p class="empty">No watches in this workspace.</p>';
+  $('watches').innerHTML=wt.watches.length?wt.watches.map(x=>'<div>👁 '+x.name+' · '+x.type+(x.last?' · last fired '+String(x.last.at).slice(0,16).replace("T"," "):' · not fired yet')+'</div>').join(''):'<div>No watches in this workspace.</div>';
 }
 async function refresh(){
   const s=await api('/api/status?ws='+WS);
-  $('stDone').textContent=s.counters.done;$('stAppr').textContent=s.counters.approved;$('stWait').textContent=s.counters.waiting;$('stRef').textContent=s.counters.refused;$('stNever').textContent=s.counters.neverExecuted;
-  $('team').innerHTML=s.team.map(b=>'<div class="bot"><div class="avatar">'+(b.emoji||'🤖')+'</div><div><b>'+b.name+'</b><span class="role">'+b.role+'</span><span class="pill'+(b.modelStatus.ok?'':' off')+'">'+b.model+' · '+(b.modelStatus.ok?b.modelStatus.mode:'offline')+'</span></div></div>').join('');
-  $('models').innerHTML='Spend today: $'+s.models.spentTodayUsd+' / $'+s.models.capUsd+' cap · live calls: '+s.models.liveCalls+'<br>Shadow mode: '+(s.shadow?'ON (approvals are logged, not sent)':'OFF — approvals deliver for real')+'<br>Delivery transports: '+Object.keys(s.delivery).filter(k=>s.delivery[k]).join(', ')+(Object.values(s.delivery).some(Boolean)?'':'none configured');
+  window.__status=s;
+  window.__wait=s.counters.waiting;
+  const pill=$('modePill');
+  if(s.shadow){pill.classList.remove('live');$('modeTxt').textContent='Practice mode';$('modeSub').textContent='approvals don’t really send';}
+  else{pill.classList.add('live');$('modeTxt').textContent='Live';$('modeSub').textContent='approvals send for real';}
+  $('team').innerHTML=s.team.map(b=>'<div class="bot"><div class="avatar">'+(b.emoji||'🤖')+'</div><div><b>'+b.name+'</b><span class="role">'+b.role+'</span></div><span class="model'+(b.modelStatus.ok?' live':'')+'">'+(b.modelStatus.ok?'live':'offline')+'</span></div>').join('');
+  $('models').innerHTML='Model spend today: $'+s.models.spentTodayUsd+' of $'+s.models.capUsd+' cap<br>Sending: '+(s.shadow?'Practice mode — approvals are logged, not sent':'Live — '+(Object.keys(s.delivery).filter(k=>s.delivery[k]).join(', ')||'no transport configured'));
   const waiting=s.approvals.filter(a=>a.status==='waiting');
   const decided=s.approvals.filter(a=>a.status!=='waiting').slice(0,4);
-  $('approvals').innerHTML=(waiting.length?waiting.map(a=>'<div class="approval"><b>'+a.bot+' — '+a.title+'</b><p>'+a.body+'</p><div class="acts"><button class="ok" onclick="decide(\''+a.id+'\',true)">✓ Approve &amp; send</button><button onclick="decide(\''+a.id+'\',false)">✕ Hold</button></div></div>').join(''):'<p class="empty">Nothing waiting.</p>')+decided.map(a=>'<div class="doneItem">'+(a.status==='approved'?'✓':'✕')+' '+a.bot+' — '+a.title+' ('+a.status+(a.delivery?' · delivery: '+a.delivery.status+(a.delivery.via?' via '+a.delivery.via:''):'')+')</div>').join('');
-  $('log').innerHTML=s.log.map(l=>'<div><b>'+(l.bot||l.kind)+'</b> '+(l.title||l.action||l.text||l.kind)+' — '+String(l.at).slice(11,19)+'</div>').join('')||'<div>No activity yet.</div>';
+  $('approvals').innerHTML=(waiting.length?waiting.map(a=>'<div class="approval"><b>'+a.bot+' — '+a.title+'</b><p>'+a.body+'</p><div class="acts"><button class="ok" onclick="decide(\''+a.id+'\',true)">Approve &amp; '+(s.shadow?'log':'send')+'</button><button class="hold" onclick="decide(\''+a.id+'\',false)">Hold</button></div></div>').join(''):'<p class="empty">All clear. Nothing needs you right now.</p>')+decided.map(a=>'<div class="doneItem">'+(a.status==='approved'?'✓':'✕')+' '+a.bot+' — '+a.title+(a.delivery?' · '+(a.delivery.status==='shadow'?'practiced':a.delivery.status)+(a.delivery.via?' via '+a.delivery.via:''):'')+'</div>').join('');
+  $('counts').textContent=s.counters.done+' done · '+s.counters.approved+' approved · '+s.counters.refused+' refused by guardrails';
+  $('log').innerHTML=s.log.slice(0,12).map(l=>'<div><b>'+(l.bot||l.kind)+'</b> '+(l.title||l.action||l.text||l.kind)+' <span style="color:var(--faint)">'+String(l.at).slice(11,16)+'</span></div>').join('')||'<div>No activity yet.</div>';
   $('quick').innerHTML=(QUICK[s.packId]||[]).map(q=>'<button onclick="quickSend(this)">'+q+'</button>').join('');
+  refreshMetaCounts();
+  refreshKnowledge();
+  refreshRoutines();
 }
-async function decide(id,ok){const s=await api(ok?'/api/approve':'/api/hold',{ws:WS,id});msg('sys','',ok?'Approved — logged as sent (shadow).':'Held — nothing sent.');refresh();}
+function refreshMetaCounts(){document.querySelectorAll('[data-ws]').forEach(b=>{const c=b.querySelector('.cnt');if(b.dataset.ws===WS&&window.__wait){if(!c){const s=document.createElement('span');s.className='cnt';s.textContent=window.__wait;b.append(s);}else c.textContent=window.__wait;}else if(c)c.remove();});}
+async function decide(id,ok){const s=await api(ok?'/api/approve':'/api/hold',{ws:WS,id});msg('sys','',ok?'Approved.':'Held — nothing sent.');refresh();}
 async function sendBrief(text){
   if(!text.trim())return;
-  msg('user','You',text);
+  msg('user','',text);
   const r=await api('/api/brief',{ws:WS,text});
-  if(r.type==='refused')msg('bad','Guardrail ⛔',r.message);
-  else if(r.type==='queued')msg('bot',r.from+' → Approvals',r.message+'\n\nQueued for your tap: "'+r.approval.title+'"');
+  if(r.type==='refused')msg('bad','Guardrail',r.message);
+  else if(r.type==='queued')msg('bot',r.from,r.message+'\n\nIt’s waiting in “Needs your attention” for your tap.');
   else msg(r.from==='Chief'?'chief':'bot',r.from,r.message);
   refresh();
 }
 function quickSend(b){sendBrief(b.textContent);}
+const KTYPES=['issues','skills','people','tasks','events','promises','companies','projects','decisions','preferences'];
+const KICONS={issues:'⚠️',skills:'🧰',people:'👤',tasks:'✅',events:'📅',promises:'🤝',companies:'🏢',projects:'📁',decisions:'🧭',preferences:'💜'};
+let KFILTER=null;
+async function refreshKnowledge(){
+  const k=await api('/api/knowledge?ws='+WS+(KFILTER?'&type='+KFILTER:''));
+  const total=Object.values(k.counts).reduce((a,b)=>a+b,0);
+  $('kpills').innerHTML='<button data-k="" class="'+(!KFILTER?'on':'')+'" style="'+(!KFILTER?'background:#1d1d1f;color:#fff;border-color:#1d1d1f':'')+'">All · '+total+'</button>'+KTYPES.map(t=>'<button data-k="'+t+'" class="'+(KFILTER===t?'on':'')+'" style="'+(KFILTER===t?'background:#1d1d1f;color:#fff;border-color:#1d1d1f':'')+'">'+KICONS[t]+' '+t[0].toUpperCase()+t.slice(1)+(k.counts[t]?' · '+k.counts[t]:'')+'</button>').join('');
+  document.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{KFILTER=b.dataset.k||null;refreshKnowledge();});
+  $('klist').innerHTML=k.entries.length?k.entries.slice(0,30).map(e=>'<div style="display:flex;gap:12px;padding:11px 2px;border-bottom:1px solid var(--line);align-items:flex-start"><div style="font-size:19px">'+KICONS[e.type]+'</div><div style="flex:1"><b style="font-size:15.5px">'+e.title+'</b>'+(e.detail?'<div style="color:var(--dim);font-size:14px">'+e.detail+'</div>':'')+'<div style="color:var(--faint);font-size:12.5px;margin-top:2px">'+e.type+' · learned by '+e.source+' · '+String(e.at).slice(0,10)+'</div></div><button title="Remove" onclick="kRemove(\''+e.id+'\')" style="border:0;background:transparent;color:var(--faint);cursor:pointer;font-size:16px">✕</button></div>').join(''):'<p class="empty">Nothing filed here yet. Brief your team — they learn as they work — or add something yourself below.</p>';
+  $('ktype').innerHTML=KTYPES.map(t=>'<option value="'+t+'">'+KICONS[t]+' '+t+'</option>').join('');
+}
+async function kRemove(id){await api('/api/knowledge/remove',{ws:WS,id});refreshKnowledge();}
+const RCHIPS=['Every weekday at 8:30, summarize my inbox','Every Friday at 5 PM, send me what we did this week','Watch a page and tell me when the price drops'];
+async function refreshRoutines(){
+  const r=await api('/api/routines?ws='+WS);
+  const rows=(r.routines||[]).map(x=>'<div style="display:flex;gap:12px;padding:11px 2px;border-bottom:1px solid var(--line);align-items:flex-start"><div style="font-size:19px">🔁</div><div style="flex:1"><b style="font-size:15.5px">'+x.brief+'</b><div style="color:var(--dim);font-size:14px">'+x.describe+' · '+x.name+'</div></div><button title="Remove" onclick="rRemove(\''+x.name+'\')" style="border:0;background:transparent;color:var(--faint);cursor:pointer;font-size:16px">✕</button></div>').join('')
+    +(r.watches||[]).map(x=>'<div style="display:flex;gap:12px;padding:11px 2px;border-bottom:1px solid var(--line);align-items:flex-start"><div style="font-size:19px">👁</div><div style="flex:1"><b style="font-size:15.5px">Watching: '+x.target+'</b><div style="color:var(--dim);font-size:14px">checks every '+x.intervalMin+' min'+(x.last?' · last fired '+String(x.last.at).slice(0,16).replace('T',' '):' · not fired yet')+'</div></div></div>').join('');
+  $('rlist').innerHTML=rows||'<div style="text-align:center;padding:18px 6px"><div style="font-size:34px">🤖</div><b style="font-size:18px">No routines yet</b><p class="empty" style="margin-top:5px">Ask a bot to do something on a schedule, or to watch a page.</p></div>';
+  $('rchips').innerHTML=RCHIPS.map(c=>'<button onclick="document.getElementById(\'rtext\').value=this.textContent;document.getElementById(\'rtext\').focus()">'+c+'</button>').join('');
+}
+async function rRemove(name){await api('/api/routines/remove',{ws:WS,name});refreshRoutines();}
+$('radd').onclick=async()=>{const v=$('rtext').value.trim();if(!v)return;const r=await api('/api/routines',{ws:WS,text:v});if(r.error){$('rerr').textContent=r.error;return;}$('rerr').textContent='';$('rtext').value='';msg('sys','','Routine added — it will brief the team on schedule, and anything it drafts still waits for your tap.');refreshRoutines();};
+$('kadd').onclick=async()=>{const title=$('ktitle').value.trim();if(!title)return;await api('/api/knowledge',{ws:WS,type:$('ktype').value,title});$('ktitle').value='';refreshKnowledge();};
 $('send').onclick=()=>{const v=$('brief').value;$('brief').value='';sendBrief(v);};
 $('brief').addEventListener('keydown',e=>{if(e.key==='Enter')$('send').click();});
-$('installBtn').onclick=async()=>{const name=$('wsname').value.trim();const r=await api('/api/packs/install',{pack:PACKSEL,name:name||undefined});if(r.installed){msg('sys','','Installed pack "'+r.installed.manifest.pack+'" as workspace "'+r.installed.workspace+'" — switching to it.');WS=r.installed.workspace;$('wsname').value='';await refreshMeta();refresh();}else{msg('bad','Install failed',(r.errors||['unknown error']).join('; '));}};
-$('tickBtn').onclick=async()=>{const r=await api('/api/watches/tick',{ws:WS});msg('sys','',r.fired&&r.fired.length?('Watches fired: '+r.fired.map(f=>f.watch+' → '+f.result).join(', ')):'Watches checked — nothing new.');refresh();refreshMeta();};
-refreshMeta().then(()=>refresh()).then(()=>msg('chief','Chief 🧭','Runtime is live. Brief me in your own words — try an inquiry, a no-show, an invoice… or try telling me to pay something, and watch the guardrail answer.'));
+$('installBtn').onclick=async()=>{const name=$('wsname').value.trim();const r=await api('/api/packs/install',{pack:PACKSEL,name:name||undefined});if(r.installed){msg('sys','','Installed “'+r.installed.manifest.pack+'” as workspace “'+r.installed.workspace+'” — switching to it.');WS=r.installed.workspace;$('wsname').value='';await refreshMeta();refresh();}else{msg('bad','Install failed',(r.errors||['unknown error']).join('; '));}};
+$('tickBtn').onclick=async()=>{const r=await api('/api/watches/tick',{ws:WS});msg('sys','',r.fired&&r.fired.length?('Watches fired: '+r.fired.map(f=>f.watch).join(', ')):'Watches checked — nothing new.');refresh();refreshMeta();};
+/* ---------- Settings ---------- */
+const SNAV_ACCOUNT=[['profile','👤','Profile'],['plan','💳','Plan and credit'],['usage','📊','Usage'],['reach','📱','How bots reach you'],['privacy','🛡️','Privacy'],['computer','💻','This computer']];
+const SNAV_WS=[['general','☀️','General'],['team','👥','Team'],['org','🗂️','Org chart'],['bots','🤖','Bots'],['logins','🔑','Logins'],['emailphone','✉️','Email and phone']];
+let SPANE='org';
+function snavRender(){
+  $('snavAccount').innerHTML=SNAV_ACCOUNT.map(x=>'<button class="snav'+(SPANE===x[0]?' on':'')+'" data-sp="'+x[0]+'">'+x[1]+' '+x[2]+'</button>').join('');
+  const bots=(window.__status?window.__status.team.length-1:0);
+  $('snavWs').innerHTML='<div style="padding:2px 8px 8px"><span style="background:#e8f1fd;border-radius:8px;padding:3px 9px;font-weight:600;font-size:14px">'+WS+'</span></div>'+SNAV_WS.map(x=>'<button class="snav'+(SPANE===x[0]?' on':'')+'" data-sp="'+x[0]+'">'+x[1]+' '+x[2]+(x[0]==='bots'?'<span class="n">'+bots+'</span>':'')+'</button>').join('');
+  document.querySelectorAll('[data-sp]').forEach(b=>b.onclick=()=>{SPANE=b.dataset.sp;snavRender();paneRender();});
+}
+async function paneRender(){
+  const s=window.__status||await api('/api/status?ws='+WS);
+  const set=(await api('/api/settings?ws='+WS)).settings;
+  const P=$('spane');
+  const head=(t,sub)=>'<h2 style="font-size:26px;text-transform:none;letter-spacing:-.3px;color:var(--txt);margin-bottom:4px">'+t+'</h2><p style="color:var(--dim);margin-bottom:18px">'+sub+'</p>';
+  const initials=(set.profile.name||'You').split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase()||'You';
+  $('profAvatar').textContent=initials; $('profName').textContent=set.profile.name||'You'; $('profEmail').textContent=set.profile.email||'this machine';
+  if(SPANE==='profile'){P.innerHTML=head('Profile','Kept on this machine only — it personalizes your org chart and greetings, and is never sent anywhere.')+'<label style="display:block;color:var(--dim);font-size:14px;margin-bottom:5px">Your name</label><input id="pfName" value="'+(set.profile.name||'')+'" style="width:100%;border:1px solid var(--line);border-radius:12px;padding:11px 13px;font-size:16px" placeholder="e.g. Mark Cav"><label style="display:block;color:var(--dim);font-size:14px;margin:14px 0 5px">Email</label><input id="pfEmail" value="'+(set.profile.email||'')+'" style="width:100%;border:1px solid var(--line);border-radius:12px;padding:11px 13px;font-size:16px" placeholder="you@example.com"><button class="mini" id="pfSave" style="background:var(--blue);color:#fff;border-color:var(--blue);font-weight:600;padding:11px 20px;margin-top:16px">Save</button>';$('pfSave').onclick=async()=>{await api('/api/settings',{ws:WS,profile:{name:$('pfName').value,email:$('pfEmail').value}});paneRender();};return;}
+  if(SPANE==='plan'){P.innerHTML=head('Plan and credit','This is a self-hosted install — there is no plan and no meter running against you.')+'<div class="srow"><b>Plan</b><span>Self-hosted (free forever)</span></div><div class="srow"><b>Hosted options</b><span>Free · Pro $20/mo · Max $200/mo — see the <a href="/signup" style="color:var(--blue)">hosted signup</a></span></div><div class="srow"><b>Model credit</b><span>Yours: bots use your own API keys, capped at $'+s.models.capUsd+'/day by the router</span></div>';return;}
+  if(SPANE==='usage'){P.innerHTML=head('Usage','What this workspace has done.')+'<div class="srow"><b>Briefs done</b><span>'+s.counters.done+'</span></div><div class="srow"><b>Approved by you</b><span>'+s.counters.approved+'</span></div><div class="srow"><b>Refused by guardrails</b><span>'+s.counters.refused+'</span></div><div class="srow"><b>Model spend today</b><span>$'+s.models.spentTodayUsd+' of $'+s.models.capUsd+' cap</span></div><div class="srow"><b>Knowledge filed</b><span>'+s.knowledge.total+' entries</span></div>';return;}
+  if(SPANE==='reach'){const c=await api('/api/channels');P.innerHTML=head('How bots reach you','Where approvals and answers can find you.')+c.channels.map(x=>'<div class="srow"><b>'+(x.channel==='slack'?'Slack':'Telegram')+'</b><span>'+(x.configured?'Connected':'Not set up')+' — '+x.note+'</span></div>').join('')+'<div class="srow"><b>Web app</b><span>This page — always on</span></div><div class="srow"><b>Relay</b><span>'+(c.relay.secretSet?'Configured':'Not configured')+' — forwards chat webhooks to this machine</span></div>';return;}
+  if(SPANE==='privacy'){P.innerHTML=head('Privacy','Your data lives here, on this machine.')+'<div class="srow"><b>Practice mode</b><span>'+(s.shadow?'On — approvals are logged, not sent':'Off — approvals send for real')+'</span></div><div class="srow"><b>Stored on disk</b><span>Workspace state, bot memory and knowledge under .data/workspaces/'+WS+'/</span></div><div class="srow"><b>What leaves</b><span>Only what you approve, through the delivery route you configured — plus model calls to the providers whose keys you added</span></div><div class="srow"><b>Guardrails</b><span>Money actions are refused in code, whatever any bot or message says</span></div>';return;}
+  if(SPANE==='computer'){const c=await api('/api/connectors');const px=await api('/api/proxmox');P.innerHTML=head('This computer','Where your bots do their hands-on work.')+'<div class="srow"><b>Sandbox</b><span>'+c.sandbox+(c.sandboxFallback?' (fell back: '+c.sandboxFallback+')':'')+'</span></div><div class="srow"><b>Proxmox</b><span>'+(px.configured?'Connected — '+(px.host||'')+' · node '+(px.node||''):'Not configured — add PROXMOX_* to .env.local')+'</span></div><div class="srow"><b>Practice mode</b><span>'+(c.shadow?'On':'Off')+'</span></div>';return;}
+  if(SPANE==='general'){P.innerHTML=head('General','About this workspace.')+'<div class="srow"><b>Workspace</b><span>'+s.workspace+'</span></div><div class="srow"><b>Pack</b><span>'+s.pack+'</span></div><div class="srow"><b>World</b><span>'+s.fiction+'</span></div><div class="srow"><b>Sending</b><span>'+(s.shadow?'Practice mode':'Live')+'</span></div>';return;}
+  if(SPANE==='team'||SPANE==='bots'){P.innerHTML=head(SPANE==='team'?'Team':'Bots','Who works in this workspace.')+s.team.map(b=>'<div class="bot" style="padding:10px 0;border-bottom:1px solid var(--line)"><div class="avatar">'+(b.emoji||'🤖')+'</div><div><b>'+b.name+'</b><span class="role">'+b.role+'</span></div>'+(SPANE==='bots'?'<span class="model'+(b.modelStatus.ok?' live':'')+'">'+b.model+' · '+(b.modelStatus.ok?'live':'offline')+'</span>':'')+'</div>').join('');return;}
+  if(SPANE==='org'){
+    const chief=s.team.find(b=>b.id==='chief')||s.team[0];const specs=s.team.filter(b=>b.id!=='chief');
+    P.innerHTML=head('Org chart',WS+': who reports to whom, and who can ask whom')
+    +'<div style="display:flex;align-items:center;gap:14px;margin-bottom:16px"><span style="font-size:15px">Bots can ask each other</span><span class="seg"><button data-ask="everyone" class="'+(set.askPolicy==='everyone'?'on':'')+'">Everyone</button><button data-ask="up_and_down" class="'+(set.askPolicy==='up_and_down'?'on':'')+'">Up and down only</button></span></div>'
+    +'<div style="background:#f7f7f9;border-radius:20px;padding:26px 18px;background-image:radial-gradient(#dcdce1 1px,transparent 1px);background-size:18px 18px">'
+    +'<div style="text-align:center"><div style="width:58px;height:58px;border-radius:50%;background:#1d1d1f;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:19px">'+initials+'</div><div><span style="background:#fff;border:1px solid var(--line);border-radius:999px;padding:2px 12px;font-size:13px">You</span></div></div>'
+    +'<div class="vline"></div>'
+    +'<div class="orgcard" style="max-width:340px;margin:0 auto"><div style="font-size:34px">'+(chief.emoji||'🧭')+'</div><b style="font-size:18px">'+chief.name+'</b><div style="color:var(--dim);font-size:14px">'+(chief.id==='chief'?'Chief of staff':chief.role)+'</div><div style="margin-top:9px"><span style="background:#f2f2f5;border-radius:999px;padding:4px 12px;font-size:13px">Sees every bot’s work</span></div></div>'
+    +'<div class="vline" style="border-left:2px dashed #c7c7cc;background:transparent;width:0"></div>'
+    +'<div class="orggrid">'+specs.map(b=>'<div class="orgcard"><div style="font-size:26px">'+(b.emoji||'🤖')+'</div><b>'+b.name+'</b><div style="color:var(--dim);font-size:13px">'+b.role+'</div></div>').join('')+'<div class="dashcard"><div style="font-size:15px;margin-bottom:9px">Your next bot goes here.</div><span style="background:#1d1d1f;color:#fff;border-radius:999px;padding:8px 16px;font-size:14px;display:inline-block">Add a bot — install a pack</span></div></div>'
+    +'<p style="text-align:center;color:var(--faint);font-size:13.5px;margin-top:14px">Requests flow through Chief today, so both policies hold. This sets the rule as bot-to-bot asks arrive.</p></div>';
+    document.querySelectorAll('[data-ask]').forEach(b=>b.onclick=async()=>{await api('/api/settings',{ws:WS,askPolicy:b.dataset.ask});paneRender();});
+    return;}
+  if(SPANE==='logins'){const c=await api('/api/connectors');P.innerHTML=head('Logins','Connected services your bots can use. Secrets live in .env.local — this page only shows whether each is set.')+c.connectors.map(x=>'<div class="srow"><b>'+x.id+'</b><span>'+(x.configured?'✓ Connected':'Not set up')+' — '+x.note+'</span></div>').join('');return;}
+  if(SPANE==='emailphone'){P.innerHTML=head('Email and phone','How approved messages actually leave the building.')+'<div class="srow"><b>Mode</b><span>'+(s.shadow?'Practice — nothing really sends':'Live')+'</span></div>'+Object.entries(s.delivery).map(([k,v])=>'<div class="srow"><b>'+k+'</b><span>'+(v?'✓ Ready':'Not configured')+'</span></div>').join('')+'<p style="color:var(--dim);margin-top:14px">Delivery only ever happens after your Approve tap — in chat, here, or from Slack/Telegram buttons.</p>';return;}
+  P.innerHTML=head('Settings','');
+}
+$('settingsBtn').onclick=()=>{$('settingsOverlay').style.display='block';snavRender();paneRender();};
+$('settingsClose').onclick=()=>{$('settingsOverlay').style.display='none';};
+$('settingsOverlay').addEventListener('click',e=>{if(e.target.id==='settingsOverlay')$('settingsOverlay').style.display='none';});
+refreshMeta().then(()=>refresh()).then(()=>msg('chief','Chief','Hi — I’m your Chief of Staff. Tell me what you need in your own words. I’ll hand it to the right specialist, and anything that would leave the building waits for your approval first.'));
 </script>
 </body>
 </html>
