@@ -35,6 +35,12 @@ const { ProxmoxDriver } = require(path.join(ROOT, 'packages/computers/proxmox'))
 const { RoutineRunner } = require(path.join(ROOT, 'packages/channels/routines'));
 const { WatchRunner } = require(path.join(ROOT, 'packages/channels/watches'));
 const { listPacks, installPack, listInstalled } = require(path.join(ROOT, 'packages/harness/pack-installer'));
+const { TenantRegistry } = require(path.join(ROOT, 'packages/hosted/tenants'));
+const { KeyVault } = require(path.join(ROOT, 'packages/hosted/vault'));
+const { UsageMeter } = require(path.join(ROOT, 'packages/hosted/metering'));
+const { provisionTenant } = require(path.join(ROOT, 'packages/hosted/provision'));
+const { BillingService, verifyStripeSignature } = require(path.join(ROOT, 'packages/hosted/billing'));
+const { verifyReport, sanitizeEvents } = require(path.join(ROOT, 'packages/hosted/reporter'));
 const slackMod = require(path.join(ROOT, 'packages/channels/slack'));
 const tgMod = require(path.join(ROOT, 'packages/channels/telegram'));
 const { ChannelDispatcher } = require(path.join(ROOT, 'packages/channels/dispatcher'));
@@ -44,6 +50,11 @@ const delivery = new DeliveryService(process.env);
 const proxmox = new ProxmoxDriver(process.env, { pollMs: 800 });
 
 const DATA = path.join(ROOT, '.data');
+const hostedRegistry = new TenantRegistry(DATA);
+const hostedVault = new KeyVault(DATA);
+const hostedMeter = new UsageMeter(DATA);
+const billing = new BillingService(process.env, globalThis.fetch, hostedRegistry);
+function meterWorkspace(wsId, kind, n = 1) { const t = hostedRegistry.byWorkspace(wsId); if (t) hostedMeter.record(t.id, kind, n); }
 const PACKS_ROOT = path.join(ROOT, 'bots/examples');
 const workspaces = {};
 const watchRunners = {};
@@ -74,24 +85,24 @@ function body(req) { return new Promise((res) => { let b = ''; req.on('data', (c
 function rawBody(req) { return new Promise((res) => { const chunks = []; req.on('data', (c) => chunks.push(c)); req.on('end', () => res(Buffer.concat(chunks).toString('utf8'))); }); }
 const dispatcher = new ChannelDispatcher({ workspaces, defaultWorkspace: process.env.BIPPITY_CHANNEL_WORKSPACE || 'enrollment' });
 
-async function handleSlackPayload(raw, res) {
+async function handleSlackPayload(raw, res, wsHint = null) {
   let payload; try { payload = JSON.parse(raw || '{}'); } catch { return send(res, 400, { error: 'bad json' }); }
   const ev = slackMod.parseEvent(payload);
   if (!ev) return send(res, 200, { ok: true });
   if (ev.kind === 'challenge') return send(res, 200, { challenge: ev.challenge });
   if (ev.kind === 'brief' && ev.text) {
-    const r = await dispatcher.brief({ text: ev.text, user: ev.user, ownerId: slackBot.owner, channel: 'slack' });
+    const r = await dispatcher.brief({ text: ev.text, user: ev.user, ownerId: slackBot.owner, channel: 'slack', workspace: wsHint });
     if (r.type === 'queued') await slackBot.sendMessage({ channel: ev.channel, text: r.text, blocks: slackMod.approvalBlocks(r, r.wsId), threadTs: ev.threadTs });
     else await slackBot.sendMessage({ channel: ev.channel, text: r.text, threadTs: ev.threadTs });
     return send(res, 200, { ok: true, result: r.type });
   }
   return send(res, 200, { ok: true });
 }
-async function handleTelegramUpdate(update, res) {
+async function handleTelegramUpdate(update, res, wsHint = null) {
   const ev = tgMod.parseUpdate(update);
   if (!ev || ev.kind === 'ignore') return send(res, 200, { ok: true });
   if (ev.kind === 'brief') {
-    const r = await dispatcher.brief({ text: ev.text, user: ev.user, ownerId: telegramBot.owner, channel: 'telegram' });
+    const r = await dispatcher.brief({ text: ev.text, user: ev.user, ownerId: telegramBot.owner, channel: 'telegram', workspace: wsHint });
     await telegramBot.sendMessage({ chatId: ev.chatId, text: r.text, replyMarkup: r.type === 'queued' ? tgMod.approvalKeyboard(r, r.wsId) : undefined });
     return send(res, 200, { ok: true, result: r.type });
   }
@@ -104,6 +115,7 @@ async function handleTelegramUpdate(update, res) {
   return send(res, 200, { ok: true });
 }
 const wsOf = (q) => workspaces[q.ws] || workspaces.enrollment;
+const signupHits = {}; // ip -> [timestamps] for the public signup rate limit
 
 const server = http.createServer(async (req, res) => {
   const u = new URL(req.url, 'http://localhost');
@@ -111,6 +123,39 @@ const server = http.createServer(async (req, res) => {
   try {
     if (u.pathname === '/' || u.pathname === '/live') return send(res, 200, fs.readFileSync(path.join(ROOT, 'apps/web/live.html'), 'utf8'), 'text/html');
     if (u.pathname === '/sim') return send(res, 200, fs.readFileSync(path.join(ROOT, 'apps/web/index.html'), 'utf8'), 'text/html');
+    if (u.pathname === '/signup' || u.pathname === '/welcome') return send(res, 200, fs.readFileSync(path.join(ROOT, 'apps/web/signup.html'), 'utf8'), 'text/html');
+    if (u.pathname === '/api/public/signup' && req.method === 'POST') {
+      const b = await body(req);
+      // Honeypot: real humans never fill the hidden "company_website" field.
+      // Bots get a cheerful fake success and nothing is created.
+      if (b.company_website) return send(res, 200, { ok: true, note: 'Check your email to finish setting up.' });
+      const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'local').split(',')[0].trim();
+      const now = Date.now();
+      signupHits[ip] = (signupHits[ip] || []).filter((t) => now - t < 3600000);
+      const limit = Number(process.env.SIGNUP_RATE_PER_HOUR || 5);
+      if (signupHits[ip].length >= limit) return send(res, 429, { error: 'Too many signups from here — try again in a bit.' });
+      const email = String(b.email || '').trim();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return send(res, 400, { error: 'A valid email is required.' });
+      if (!b.name || !b.pack) return send(res, 400, { error: 'Name and pack are required.' });
+      signupHits[ip].push(now);
+      const wantPlan = ['free', 'pro', 'max'].includes(b.plan) ? b.plan : 'free';
+      const base = process.env.PUBLIC_BASE_URL || `http://${req.headers.host || '127.0.0.1:' + PORT}`;
+      const r = provisionTenant({ registry: hostedRegistry, vault: hostedVault, meter: hostedMeter, dataRoot: DATA, packsRoot: PACKS_ROOT, relayBase: process.env.PUBLIC_RELAY_BASE || base, name: String(b.name).slice(0, 80), email, plan: 'free', pack: String(b.pack), vars: b.vars || {}, workspaceName: b.workspace, targetUrl: b.targetUrl || '', status: wantPlan === 'free' ? 'active' : 'pending' });
+      if (!r.ok) return send(res, 400, r);
+      const packDir = path.join(DATA, 'workspaces', r.tenant.workspace, 'pack');
+      if (!workspaces[r.tenant.workspace] && fs.existsSync(path.join(packDir, 'pack.yaml'))) registerWorkspace(r.tenant.workspace, new Workspace({ pack: loadPack(packDir), dataRoot: DATA, workspaceId: r.tenant.workspace }), packDir);
+      let checkout = null;
+      if (wantPlan !== 'free') { const t = hostedRegistry.byId(r.tenant.id); try { checkout = await billing.createCheckout({ tenant: t, plan: wantPlan, successUrl: base + '/welcome?tenant=' + t.id, cancelUrl: base + '/signup' }); } catch (e) { checkout = { error: e.message }; } }
+      const full = hostedRegistry.byId(r.tenant.id);
+      // Public response: webhook URLs + relay token (the customer needs
+      // them to configure Slack/Telegram) — never the instanceSecret.
+      return send(res, 200, { ok: true, tenant: r.tenant, webhooks: r.webhooks, relayToken: full.relayToken, checkout, status: full.status, note: wantPlan === 'free' ? 'Your workspace is live. Paste a webhook URL into Slack or Telegram to start briefing your bots.' : 'Your workspace is reserved. It activates as soon as checkout completes.' });
+    }
+    if (u.pathname === '/api/public/status') {
+      const t = hostedRegistry.byId(q.tenant);
+      if (!t || !q.token || q.token !== t.relayToken) return send(res, 401, { error: 'tenant + token required' });
+      return send(res, 200, { tenant: t.id, name: t.name, plan: t.plan, status: t.status, workspaces: t.workspaces, usage: hostedMeter.summary(t.id) });
+    }
     if (u.pathname === '/api/status') return send(res, 200, wsOf(q).status());
     if (u.pathname === '/api/workspaces') return send(res, 200, { workspaces: Object.values(workspaces).map((w) => ({ id: w.id, pack: w.pack.id, name: w.pack.name, installed: !!listInstalled(DATA).find((m) => m.workspace === w.id) })) });
     if (u.pathname === '/api/packs') return send(res, 200, { available: listPacks(PACKS_ROOT), installed: listInstalled(DATA) });
@@ -145,19 +190,74 @@ const server = http.createServer(async (req, res) => {
     }
     const relay = u.pathname.match(/^\/api\/relay\/(slack|telegram)$/);
     if (relay && req.method === 'POST') {
-      if (!process.env.RELAY_SECRET || req.headers['x-bippity-relay-secret'] !== process.env.RELAY_SECRET) return send(res, 401, { error: 'bad relay secret' });
+      // Accept either the single-tenant RELAY_SECRET or a hosted tenant's
+      // instanceSecret (v0.6): the relay forwards the tenant's secret.
+      const given = req.headers['x-bippity-relay-secret'] || '';
+      const tenant = req.headers['x-bippity-tenant'] && req.headers['x-bippity-tenant'] !== 'single' ? hostedRegistry.byId(req.headers['x-bippity-tenant']) : null;
+      const secretOk = (process.env.RELAY_SECRET && given === process.env.RELAY_SECRET) || (tenant && given === tenant.instanceSecret);
+      if (!secretOk) return send(res, 401, { error: 'bad relay secret' });
+      // Briefs arriving via the hosted relay are metered BY the relay
+      // (it appends to the shared usage file) — not double-counted here.
+      const wsHint = req.headers['x-bippity-workspace'] || null;
       const raw = await rawBody(req);
       if (relay[1] === 'slack') {
         if (slackBot.signingSecret && !slackMod.verifySignature({ signingSecret: slackBot.signingSecret, timestamp: req.headers['x-slack-request-timestamp'], rawBody: raw, signature: req.headers['x-slack-signature'] })) return send(res, 401, { error: 'bad slack signature' });
-        return handleSlackPayload(raw, res);
+        return handleSlackPayload(raw, res, wsHint);
       }
       if (telegramBot.webhookSecret && req.headers['x-telegram-bot-api-secret-token'] !== telegramBot.webhookSecret) return send(res, 401, { error: 'bad telegram secret' });
       let upd; try { upd = JSON.parse(raw || '{}'); } catch { return send(res, 400, { error: 'bad json' }); }
-      return handleTelegramUpdate(upd, res);
+      return handleTelegramUpdate(upd, res, wsHint);
+    }
+    if (u.pathname.startsWith('/api/hosted/')) {
+      // Usage reports authenticate with the tenant's instanceSecret, not the admin token.
+      if (u.pathname === '/api/hosted/usage/report' && req.method === 'POST') {
+        const b = await body(req);
+        const v = verifyReport(hostedRegistry, b.tenant, req.headers['x-bippity-relay-secret']);
+        if (!v.ok) return send(res, 401, { error: v.error });
+        const clean = sanitizeEvents(b.events);
+        for (const e of clean) hostedMeter.record(v.tenant.id, e.kind, e.n);
+        return send(res, 200, { ok: true, recorded: clean.length });
+      }
+      const admin = process.env.HOSTED_ADMIN_TOKEN || '';
+      if (!admin || req.headers['x-bippity-admin'] !== admin) return send(res, 401, { error: 'hosted admin token required (HOSTED_ADMIN_TOKEN)' });
+      if (u.pathname === '/api/hosted/tenants' && req.method === 'GET') return send(res, 200, { tenants: hostedRegistry.list(), vault: hostedVault.status() });
+      if (u.pathname === '/api/hosted/tenants' && req.method === 'POST') {
+        const b = await body(req);
+        const r = provisionTenant({ registry: hostedRegistry, vault: hostedVault, meter: hostedMeter, dataRoot: DATA, packsRoot: PACKS_ROOT, relayBase: b.relayBase || '', name: b.name, plan: b.plan || 'pro', pack: b.pack, vars: b.vars || {}, workspaceName: b.workspace, targetUrl: b.targetUrl || '', secrets: b.secrets || null, computer: b.computer || null });
+        if (!r.ok) return send(res, 400, r);
+        const packDir = path.join(DATA, 'workspaces', r.tenant.workspace, 'pack');
+        if (!workspaces[r.tenant.workspace] && fs.existsSync(path.join(packDir, 'pack.yaml'))) registerWorkspace(r.tenant.workspace, new Workspace({ pack: loadPack(packDir), dataRoot: DATA, workspaceId: r.tenant.workspace }), packDir);
+        const full = hostedRegistry.byId(r.tenant.id);
+        return send(res, 200, { ...r, relayToken: full.relayToken, instanceSecret: full.instanceSecret });
+      }
+      if (u.pathname === '/api/hosted/usage') { const t = hostedRegistry.byId(q.tenant); if (!t) return send(res, 404, { error: 'unknown tenant' }); return send(res, 200, { summary: hostedMeter.summary(t.id), briefAllowed: hostedMeter.briefAllowed(t) }); }
+      if (u.pathname === '/api/hosted/rotate' && req.method === 'POST') { const b = await body(req); const t = hostedRegistry.rotate(b.tenant); return t ? send(res, 200, { rotated: t.id, relayToken: t.relayToken, instanceSecret: t.instanceSecret }) : send(res, 404, { error: 'unknown tenant' }); }
+      if (u.pathname === '/api/hosted/billing') { const t = hostedRegistry.byId(q.tenant); if (!t) return send(res, 404, { error: 'unknown tenant' }); const { PLANS } = require(path.join(ROOT, 'packages/hosted/tenants')); return send(res, 200, { billing: billing.status(), tenant: { id: t.id, plan: t.plan, status: t.status, billing: t.billing || null }, usage: hostedMeter.summary(t.id), planPriceCents: PLANS[t.plan].priceCents }); }
+      if (u.pathname === '/api/hosted/billing/checkout' && req.method === 'POST') { const b = await body(req); const t = hostedRegistry.byId(b.tenant); if (!t) return send(res, 404, { error: 'unknown tenant' }); try { const s = await billing.createCheckout({ tenant: t, plan: b.plan || t.plan, successUrl: b.successUrl || 'https://example.com/billing/success', cancelUrl: b.cancelUrl || 'https://example.com/billing/cancel' }); return send(res, 200, { checkout: s }); } catch (e) { return send(res, 400, { error: e.message }); } }
+      if (u.pathname === '/api/hosted/billing/portal' && req.method === 'POST') { const b = await body(req); const t = hostedRegistry.byId(b.tenant); if (!t) return send(res, 404, { error: 'unknown tenant' }); try { return send(res, 200, { portal: await billing.createPortal({ tenant: t, returnUrl: b.returnUrl || 'https://example.com/account' }) }); } catch (e) { return send(res, 400, { error: e.message }); } }
+      if (u.pathname === '/api/hosted/signup' && req.method === 'POST') {
+        const b = await body(req);
+        const wantPlan = b.plan || 'free';
+        const r = provisionTenant({ registry: hostedRegistry, vault: hostedVault, meter: hostedMeter, dataRoot: DATA, packsRoot: PACKS_ROOT, relayBase: b.relayBase || '', name: b.name, plan: 'free', pack: b.pack, vars: b.vars || {}, workspaceName: b.workspace, targetUrl: b.targetUrl || '', secrets: b.secrets || null, status: wantPlan === 'free' ? 'active' : 'pending' });
+        if (!r.ok) return send(res, 400, r);
+        const packDir = path.join(DATA, 'workspaces', r.tenant.workspace, 'pack');
+        if (!workspaces[r.tenant.workspace] && fs.existsSync(path.join(packDir, 'pack.yaml'))) registerWorkspace(r.tenant.workspace, new Workspace({ pack: loadPack(packDir), dataRoot: DATA, workspaceId: r.tenant.workspace }), packDir);
+        let checkout = null;
+        if (wantPlan !== 'free') { const t = hostedRegistry.byId(r.tenant.id); try { checkout = await billing.createCheckout({ tenant: t, plan: wantPlan, successUrl: b.successUrl || 'https://example.com/welcome', cancelUrl: b.cancelUrl || 'https://example.com/pricing' }); } catch (e) { checkout = { error: e.message }; } }
+        const full = hostedRegistry.byId(r.tenant.id);
+        return send(res, 200, { signup: r, checkout, relayToken: full.relayToken, instanceSecret: full.instanceSecret, note: wantPlan === 'free' ? 'Active immediately.' : 'Workspace activates when the Stripe subscription lands (checkout.session.completed / subscription events).' });
+      }
+      return send(res, 404, { error: 'unknown hosted route' });
+    }
+    if (u.pathname === '/api/stripe/webhook' && req.method === 'POST') {
+      const raw = await rawBody(req);
+      if (billing.webhookSecret && !verifyStripeSignature({ secret: billing.webhookSecret, header: req.headers['stripe-signature'], rawBody: raw })) return send(res, 400, { error: 'bad stripe signature' });
+      let event; try { event = JSON.parse(raw || '{}'); } catch { return send(res, 400, { error: 'bad json' }); }
+      try { return send(res, 200, { received: true, result: billing.handleEvent(event) }); } catch (e) { return send(res, 500, { error: e.message }); }
     }
     if (u.pathname === '/api/memory') { const w = wsOf(q); return send(res, 200, { bot: q.bot, memory: w.memory.load(w.id, q.bot || 'chief') }); }
-    if (u.pathname === '/api/brief' && req.method === 'POST') { const b = await body(req); if (!b.text) return send(res, 400, { error: 'text required' }); return send(res, 200, await wsOf(b).brief(String(b.text), 'web')); }
-    if (u.pathname === '/api/approve' && req.method === 'POST') { const b = await body(req); const a = await wsOf(b).approve(b.id); return a ? send(res, 200, { approved: a, delivery: a.delivery, status: wsOf(b).status() }) : send(res, 404, { error: 'no waiting approval with that id' }); }
+    if (u.pathname === '/api/brief' && req.method === 'POST') { const b = await body(req); if (!b.text) return send(res, 400, { error: 'text required' }); meterWorkspace(wsOf(b).id, 'brief', 1); return send(res, 200, await wsOf(b).brief(String(b.text), 'web')); }
+    if (u.pathname === '/api/approve' && req.method === 'POST') { const b = await body(req); const a = await wsOf(b).approve(b.id); if (a) { meterWorkspace(wsOf(b).id, 'approval', 1); if (a.delivery) meterWorkspace(wsOf(b).id, 'delivery', 1); } return a ? send(res, 200, { approved: a, delivery: a.delivery, status: wsOf(b).status() }) : send(res, 404, { error: 'no waiting approval with that id' }); }
     if (u.pathname === '/api/hold' && req.method === 'POST') { const b = await body(req); const a = wsOf(b).hold(b.id); return a ? send(res, 200, { held: a, status: wsOf(b).status() }) : send(res, 404, { error: 'no waiting approval with that id' }); }
     const ch = u.pathname.match(/^\/api\/channel\/(\w+)$/);
     if (ch && req.method === 'POST') {
