@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>bippity — hosted bot teams</title>
+<style>
+  :root { --ink:#10131a; --dim:#5b6472; --card:#fff; --line:#e3e7ee; --bg:#f4f6fa; --brand:#5b5bd6; --ok:#137a4b; --bad:#b3261e; }
+  * { box-sizing:border-box; } body { margin:0; font:16px/1.55 -apple-system, "Segoe UI", Roboto, sans-serif; color:var(--ink); background:var(--bg); }
+  .wrap { max-width:880px; margin:0 auto; padding:20px 16px 60px; }
+  h1 { font-size:34px; margin:18px 0 6px; letter-spacing:-.5px; } h2 { margin:28px 0 8px; font-size:21px; }
+  .sub { color:var(--dim); font-size:17px; max-width:640px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:12px; margin-top:12px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; }
+  .price { font-size:26px; font-weight:700; } .per { color:var(--dim); font-size:14px; }
+  ul { margin:8px 0 0; padding-left:18px; } li { margin:3px 0; }
+  label { display:block; font-size:13px; color:var(--dim); margin:12px 0 4px; }
+  input, select { width:100%; padding:10px; border:1px solid var(--line); border-radius:8px; font-size:16px; background:#fff; }
+  button { background:var(--brand); color:#fff; border:0; border-radius:9px; padding:12px 18px; font-size:16px; cursor:pointer; margin-top:16px; width:100%; }
+  button:disabled { opacity:.55; }
+  .hp { position:absolute; left:-9999px; width:1px; height:1px; opacity:0; }
+  .ok { background:#e9f7ef; border:1px solid #bfe6cf; color:var(--ink); border-radius:10px; padding:14px; margin-top:16px; word-break:break-all; }
+  .err { background:#fdecea; border:1px solid #f3c1bd; border-radius:10px; padding:12px; margin-top:16px; }
+  .mono { font-family:ui-monospace, Menlo, monospace; font-size:13px; }
+  .tiers { font-size:14px; } .guard { border-left:4px solid var(--brand); }
+  footer { color:var(--dim); font-size:13px; margin-top:36px; }
+  a { color:var(--brand); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🤖 bippity, hosted</h1>
+  <p class="sub">A Chief and a team of specialist bots for your business — answering inquiries, chasing POs, matching invoices — with one rule that never bends: <b>bots propose, humans approve, money never moves on its own.</b> The code is <a href="https://github.com/buildusefulthings/bippity">open on GitHub</a>; hosting is the part you pay for.</p>
+
+  <h2>Pick your team</h2>
+  <div class="grid">
+    <div class="card"><b>🏫 Enrollment</b><p class="sub" style="font-size:14px">For microschools &amp; co-ops: first response in under a minute, tours, applications, waitlist backfill, re-enrollment.</p></div>
+    <div class="card"><b>🏭 Ops</b><p class="sub" style="font-size:14px">For job shops &amp; light manufacturers: PO chasing, order inbox triage, 3-way invoice matching that catches billing errors.</p></div>
+    <div class="card guard"><b>🛡 Guardrails in code</b><p class="sub" style="font-size:14px">Auto / Approve / <b>Never Auto</b> tiers enforced by the software — not by a prompt. Payments are Never Auto, even if a bot (or a customer) asks.</p></div>
+  </div>
+
+  <h2>Pricing</h2>
+  <div class="grid tiers">
+    <div class="card"><div class="price">Free</div><div class="per">self-host forever</div><ul><li>Everything in the repo</li><li>1 workspace</li><li>200 briefs/mo on hosted relay</li></ul></div>
+    <div class="card"><div class="price">$20<span class="per">/mo</span></div><div class="per">Pro — hosted relay + workspace</div><ul><li>5 workspaces</li><li>5,000 briefs/mo</li><li>Bring your own model keys</li></ul></div>
+    <div class="card"><div class="price">$200<span class="per">/mo</span></div><div class="per">Max — hosted computers</div><ul><li>25 workspaces</li><li>50,000 briefs/mo</li><li>Always-on bot computers</li></ul></div>
+  </div>
+
+  <h2>Create your workspace</h2>
+  <div class="card">
+    <form id="signup">
+      <label>Your name / business</label>
+      <input name="name" required maxlength="80" placeholder="Willow Creek Microschool">
+      <label>Email</label>
+      <input name="email" type="email" required placeholder="you@yourschool.org">
+      <label>Team pack</label>
+      <select name="pack"><option value="enrollment">🏫 Enrollment</option><option value="ops">🏭 Ops</option></select>
+      <label>Plan</label>
+      <select name="plan"><option value="free">Free</option><option value="pro">Pro — $20/mo</option><option value="max">Max — $200/mo</option></select>
+      <label>Workspace name (letters, numbers, dashes)</label>
+      <input name="workspace" pattern="[a-z0-9-]+" placeholder="willow-creek">
+      <input class="hp" name="company_website" tabindex="-1" autocomplete="off" aria-hidden="true">
+      <button id="go" type="submit">Create my workspace</button>
+      <div id="out"></div>
+    </form>
+  </div>
+
+  <h2>Already signed up?</h2>
+  <div class="card">
+    <form id="status">
+      <label>Tenant ID</label><input name="tenant" class="mono" placeholder="t_…">
+      <label>Your token (from signup)</label><input name="token" class="mono">
+      <button type="submit">Check status</button>
+      <div id="sout"></div>
+    </form>
+  </div>
+
+  <footer>bippity is FSL-licensed open code — free to use, self-host, modify and share; it converts to Apache 2.0 two years after each release. Hosted plans are the paid tier. Bots run in shadow mode until you turn real sending on; approvals always release by a human.</footer>
+</div>
+<script>
+const $ = (s) => document.querySelector(s);
+$('#signup').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const f = Object.fromEntries(new FormData(e.target));
+  const btn = $('#go'); btn.disabled = true; btn.textContent = 'Creating…';
+  try {
+    const r = await fetch('/api/public/signup', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(f) });
+    const j = await r.json();
+    if (!r.ok || j.ok === false) throw new Error(j.error || (j.errors || ['Something went wrong'])[0]);
+    let html = '<b>Workspace created.</b> Tenant <span class="mono">' + j.tenant.id + '</span> — keep your token: <span class="mono">' + j.relayToken + '</span><br><br>Paste this webhook URL into Slack or Telegram to connect chat:<br><span class="mono">' + (j.webhooks.telegram || j.webhooks.slack) + '</span>';
+    if (j.checkout && j.checkout.url) html += '<br><br><a href="' + j.checkout.url + '"><b>Complete checkout to activate your plan →</b></a>';
+    else if (j.checkout && j.checkout.error) html += '<br><br>Checkout is not live yet — the operator will email you a payment link. Your free workspace already works.';
+    html += '<br><br>' + j.note;
+    $('#out').innerHTML = '<div class="ok">' + html + '</div>';
+  } catch (err) { $('#out').innerHTML = '<div class="err">' + err.message + '</div>'; }
+  btn.disabled = false; btn.textContent = 'Create my workspace';
+});
+$('#status').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const f = Object.fromEntries(new FormData(e.target));
+  const r = await fetch('/api/public/status?tenant=' + encodeURIComponent(f.tenant) + '&token=' + encodeURIComponent(f.token));
+  const j = await r.json();
+  $('#sout').innerHTML = r.ok
+    ? '<div class="ok"><b>' + j.name + '</b> — plan <b>' + j.plan + '</b>, status <b>' + j.status + '</b><br>Workspaces: ' + j.workspaces.join(', ') + '<br>Briefs this month: ' + j.usage.briefs + ' · Approvals: ' + j.usage.approvals + ' · Deliveries: ' + j.usage.deliveries + '</div>'
+    : '<div class="err">' + (j.error || 'Not found') + '</div>';
+});
+</script>
+</body>
+</html>
