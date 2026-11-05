@@ -8,7 +8,7 @@
   "private": false,
   "scripts": {
     "start": "node apps/server/server.js",
-    "test": "node tests/runtime.test.js && node tests/v03.test.js && node tests/v04.test.js && node tests/v05.test.js && node tests/v06.test.js && node tests/v07.test.js && node tests/v08.test.js && node tests/v09.test.js && node tests/v10.test.js && node tests/v11.test.js && node tests/v12.test.js",
+    "test": "node tests/runtime.test.js && node tests/v03.test.js && node tests/v04.test.js && node tests/v05.test.js && node tests/v06.test.js && node tests/v07.test.js && node tests/v08.test.js && node tests/v09.test.js && node tests/v10.test.js && node tests/v11.test.js && node tests/v12.test.js && node tests/v13.test.js && node tests/v14.test.js",
     "relay": "node apps/relay/relay.js",
     "test:v02": "node tests/runtime.test.js",
     "test:v03": "node tests/v03.test.js",
@@ -21,7 +21,9 @@
     "test:v09": "node tests/v09.test.js",
     "test:v10": "node tests/v10.test.js",
     "test:v11": "node tests/v11.test.js",
-    "test:v12": "node tests/v12.test.js"
+    "test:v12": "node tests/v12.test.js",
+    "test:v13": "node tests/v13.test.js",
+    "test:v14": "node tests/v14.test.js"
   },
-  "version": "0.12.0"
+  "version": "0.14.0"
 }
