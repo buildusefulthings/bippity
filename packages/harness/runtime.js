@@ -20,6 +20,7 @@ const { DeliveryService } = require('../connectors/delivery');
 const { KnowledgeStore } = require('./knowledge');
 const { WorkspaceSettings } = require('./settings');
 const { SkillStore } = require('./skills');
+const { BotConfigStore } = require('./bot-config');
 
 class Workspace {
   constructor({ pack, dataRoot, env = process.env, delivery = null, workspaceId = null }) {
@@ -32,6 +33,7 @@ class Workspace {
     this.knowledge = new KnowledgeStore(dataRoot);
     this.settings = new WorkspaceSettings(dataRoot);
     this.skills = new SkillStore(dataRoot);
+    this.botConfig = new BotConfigStore(dataRoot);
     this.models = new ModelRouter(env);
     this.delivery = delivery || new DeliveryService(env);
     this.shadow = env.BIPPITY_SHADOW_MODE !== '0';
@@ -42,6 +44,14 @@ class Workspace {
     fs.mkdirSync(this.dir, { recursive: true });
     this.stateFile = path.join(this.dir, 'state.json');
     this.state = this._load();
+  }
+
+  /** Rebuild model + delivery layers after connection settings change. */
+  applyEnv(env) {
+    const spent = this.models ? this.models.spentToday : 0;
+    this.models = new ModelRouter(env);
+    this.models.spentToday = spent;
+    this.delivery = new DeliveryService(env);
   }
   _load() {
     if (fs.existsSync(this.stateFile)) { try { return JSON.parse(fs.readFileSync(this.stateFile, 'utf8')); } catch { /* fall through */ } }
@@ -87,11 +97,15 @@ class Workspace {
     // in the brief are followed (drafts never are) and noted in Knowledge.
     const followed = this.skills.matchFor(this.id, bot.id, text).map((s) => s.name);
     for (const name of followed) { try { this.knowledge.add(this.id, { type: 'skills', title: `Skill followed: ${name}`, detail: `Followed during: ${work.title}`, source: bot.name }); } catch { /* skip */ } }
-    if (d.decision === 'run') {
+    // "Just do it" mode (the owner's per-bot choice on its profile page):
+    // Approve-tier work runs without queueing. Never-tier was already
+    // refused above — this can never widen past the guardrails.
+    const justDoIt = d.decision === 'queue' && this.botConfig.get(this.id, bot.id).approvalsMode === 'just';
+    if (d.decision === 'run' || justDoIt) {
       this.state.counters.done++;
-      this._log({ kind: 'auto', bot: bot.name, action: work.action, title: work.title });
+      this._log({ kind: 'auto', bot: bot.name, action: work.action, title: work.title, via: justDoIt ? 'just-do-it mode' : undefined });
       this._save();
-      return { type: 'done', from: bot.name, message: work.summary, learned, skills: followed, counters: this.state.counters };
+      return { type: 'done', from: bot.name, message: work.summary, learned, skills: followed, via: justDoIt ? 'just-do-it mode' : undefined, counters: this.state.counters };
     }
     const approval = { id: 'a' + (++this.state.seq), bot: bot.name, botId: bot.id, action: work.action, title: work.title, body: work.body, summary: work.summary, deliver: work.deliver || null, at: new Date().toISOString(), status: 'waiting' };
     this.state.approvals.unshift(approval);
@@ -128,7 +142,7 @@ class Workspace {
   status() {
     return {
       workspace: this.id, pack: this.pack.name, packId: this.pack.id, fiction: this.pack.fiction, shadow: this.shadow,
-      team: this.bots.map((b) => ({ id: b.id, name: b.name, emoji: b.emoji, role: b.role, model: b.model, modelStatus: this.models.available(b.model) })),
+      team: this.bots.map((b) => { const cfg = this.botConfig.get(this.id, b.id); return { id: b.id, name: b.name, emoji: b.emoji, role: b.role, model: cfg.model || b.model, modelStatus: this.models.available(cfg.model || b.model), computer: b.computer, config: { approvalsMode: cfg.approvalsMode, thinking: cfg.thinking, worksOn: cfg.worksOn, hasInstructions: !!cfg.howIWork } }; }),
       approvals: this.state.approvals, log: this.state.log.slice(0, 50),
       counters: { ...this.state.counters, waiting: this.state.approvals.filter((a) => a.status === 'waiting').length, neverExecuted: 0 },
       models: this.models.status(this.bots.map((b) => b.model)),
