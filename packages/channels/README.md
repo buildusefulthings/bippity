@@ -21,3 +21,16 @@ Where humans talk to the team.
   brief is refused, tested), same guardrails, same approvals inbox.
   The UI has a "Check watches now" button; the runner also ticks
   every minute.
+
+## Native bots (v0.5)
+- `slack.js` — Slack Events API + slash commands + Block Kit approve/hold
+  buttons. Signatures verified on the raw body (HMAC-SHA256, 5-min window).
+- `telegram.js` — Telegram Bot API: webhook updates, inline-keyboard
+  approvals, optional polling mode for no-public-URL setups.
+- `dispatcher.js` — one brain for both: owner gating, `<workspace>:` prefix
+  targeting, result formatting, and chat approvals through the exact same
+  Workspace.approve() path as the web UI (shadow/delivery apply unchanged).
+- Server endpoints: `/api/slack/events`, `/api/slack/commands`,
+  `/api/slack/interactions`, `/api/telegram/webhook`, `/api/channels`.
+- No public URL at home? Run `apps/relay/relay.js` anywhere public — see
+  docs/HOSTED_RELAY.md. Telegram can also poll (`startPolling`).
