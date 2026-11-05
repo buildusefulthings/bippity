@@ -49,3 +49,19 @@ not breadth.
 
 
 v0.6 implementation status (2026-11-04) — hosted R2 built: packages/hosted (tenants, vault, metering, provision) + relay hosted mode. See docs/HOSTED_RELAY.md.
+
+## v0.10–v0.12 additions
+
+- **Knowledge** (`packages/harness/knowledge.js`): per-workspace store,
+  ten types. `work()` results may carry `learns[]`; `Workspace.brief`
+  files them on run/queue paths only (refusals teach nothing). API
+  `/api/knowledge`. Reference only — never widens guardrails.
+- **Settings** (`packages/harness/settings.js`): per-workspace
+  `settings.json`, whitelisted keys (profile, askPolicy). The Settings
+  sheet's org chart renders You → Chief → specialists from the live
+  team; askPolicy records the owner's rule (Chief mediates everything
+  today, so both values are compliant).
+- **Routines** (`packages/channels/routine-parse.js`): strict
+  plain-language parser for schedule sentences and watch sentences;
+  user routines persist to `.data/workspaces/<ws>/routines.json` and
+  fire through `brief()` like any typed brief.
