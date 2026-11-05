@@ -8,11 +8,12 @@
   "private": false,
   "scripts": {
     "start": "node apps/server/server.js",
-    "test": "node tests/runtime.test.js && node tests/v03.test.js && node tests/v04.test.js",
+    "test": "node tests/runtime.test.js && node tests/v03.test.js && node tests/v04.test.js && node tests/v05.test.js",
+    "relay": "node apps/relay/relay.js",
     "test:v02": "node tests/runtime.test.js",
     "test:v03": "node tests/v03.test.js",
     "test:v04": "node tests/v04.test.js",
     "install-pack": "node scripts/install-pack.js"
   },
-  "version": "0.4.0"
+  "version": "0.5.0"
 }
