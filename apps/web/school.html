@@ -89,6 +89,7 @@
       <div class="cta">
         <a class="btn" href="/configure">Configure bippity for your school</a>
         <a class="play" href="#flow"><span>▶</span> See how it works</a>
+        <button class="play" style="background:none;border:0;cursor:pointer;font:inherit" onclick="fetch('/api/toy-school',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({ws:'enrollment'})}).then(()=>location.href='/')">🧸 Open the toy school</button>
       </div>
       <p style="color:#888;font-size:14px;margin-top:16px">For schools of 10–60 students. You approve anything that carries your school's name — or a dollar sign.</p>
     </div>

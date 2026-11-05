@@ -92,6 +92,7 @@
     <h2 style="margin-top:18px">Your team</h2>
     <div id="team"><p class="empty">Loading…</p></div>
     <div class="shield">🛡️ <b>Money is always blocked.</b><br>Bots can draft and propose — only you can approve a send, and payments are refused outright.</div>
+    <div class="shield" id="toyCard" style="display:none;background:#fdf6e3;border-color:#ecd9a0">🧸 <b>Toy school</b><br><span id="toyState">Willow Creek Microschool, ready-made.</span><div style="display:flex;gap:7px;margin-top:9px"><button class="mini" id="toyLoad" style="padding:7px 13px;font-weight:600" onclick="toySchool(false)">Load the toy school</button><button class="mini" style="padding:7px 13px" onclick="toySchool(true)">Reset</button></div></div>
     <details><summary>More — install packs, watches, models</summary><div class="inner">
       <b>Install a pack</b>
       <div id="packs" style="margin-top:6px">Loading…</div>
@@ -126,6 +127,11 @@
   </aside>
 </main>
 <section class="card" style="max-width:1240px;margin:0 auto 18px;width:calc(100% - 40px)">
+  <h2 style="font-size:20px;text-transform:none;letter-spacing:-.2px;color:var(--txt);margin-bottom:2px">Connections</h2>
+  <p style="color:var(--dim);font-size:14.5px;margin-bottom:14px">Connect the services your bots use — right here, no config files. Keys are stored on this machine only, and never shown back in full.</p>
+  <div id="connGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(255px,1fr));gap:12px"><p class="empty">Loading…</p></div>
+</section>
+<section class="card" style="max-width:1240px;margin:0 auto 18px;width:calc(100% - 40px)">
   <h2 style="font-size:20px;text-transform:none;letter-spacing:-.2px;color:var(--txt);margin-bottom:2px">Routines</h2>
   <p style="color:var(--dim);font-size:14.5px;margin-bottom:14px">What your bots do on their own. Anything a routine produces still waits for your approval before it sends.</p>
   <div id="rlist"><p class="empty">Loading…</p></div>
@@ -152,6 +158,12 @@
     <button class="mini" id="kadd" style="background:var(--blue);color:#fff;border-color:var(--blue);font-weight:600;padding:10px 18px">Add</button>
   </div>
 </section>
+<div id="botOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.28);z-index:60;padding:22px;overflow:auto">
+  <div style="max-width:760px;margin:0 auto;background:#fff;border-radius:24px;box-shadow:0 24px 70px rgba(0,0,0,.25);overflow:hidden">
+    <div id="botHead" style="padding:26px 28px 20px"></div>
+    <div id="botBody" style="padding:6px 28px 28px"></div>
+  </div>
+</div>
 <div id="settingsOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.28);z-index:50;padding:22px;overflow:auto">
   <div style="max-width:1020px;margin:0 auto;background:#fff;border-radius:24px;box-shadow:0 24px 70px rgba(0,0,0,.25);display:grid;grid-template-columns:250px 1fr;min-height:560px;overflow:hidden">
     <aside style="background:#fbfbfd;border-right:1px solid var(--line);padding:20px 14px">
@@ -206,11 +218,12 @@ async function refreshMeta(){
 async function refresh(){
   const s=await api('/api/status?ws='+WS);
   window.__status=s;
+  const toy=$('toyCard'); if(toy){ toy.style.display = s.packId==='enrollment' ? 'block':'none'; const loaded=(s.knowledge?s.knowledge.total:0)>0; $('toyState').textContent = loaded?'Willow Creek is loaded — every screen has something to show.':'Willow Creek Microschool, ready-made: profile, families, approvals, a routine.'; $('toyLoad').textContent = loaded?'Loaded ✓':'Load the toy school'; $('toyLoad').disabled = loaded; $('toyLoad').style.opacity = loaded?.55:1; }
   window.__wait=s.counters.waiting;
   const pill=$('modePill');
   if(s.shadow){pill.classList.remove('live');$('modeTxt').textContent='Practice mode';$('modeSub').textContent='approvals don’t really send';}
   else{pill.classList.add('live');$('modeTxt').textContent='Live';$('modeSub').textContent='approvals send for real';}
-  $('team').innerHTML=s.team.map(b=>'<div class="bot"><div class="avatar">'+(b.emoji||'🤖')+'</div><div><b>'+b.name+'</b><span class="role">'+b.role+'</span></div><span class="model'+(b.modelStatus.ok?' live':'')+'">'+(b.modelStatus.ok?'live':'offline')+'</span></div>').join('');
+  $('team').innerHTML=s.team.map(b=>'<div class="bot" style="cursor:pointer" title="Configure '+b.name+'" onclick="openBot(\''+b.id+'\')"><div class="avatar">'+(b.emoji||'🤖')+'</div><div><b>'+b.name+'</b><span class="role">'+b.role+'</span></div><span class="model'+(b.modelStatus.ok?' live':'')+'">'+(b.modelStatus.ok?'live':'offline')+'</span></div>').join('');
   $('models').innerHTML='Model spend today: $'+s.models.spentTodayUsd+' of $'+s.models.capUsd+' cap<br>Sending: '+(s.shadow?'Practice mode — approvals are logged, not sent':'Live — '+(Object.keys(s.delivery).filter(k=>s.delivery[k]).join(', ')||'no transport configured'));
   const waiting=s.approvals.filter(a=>a.status==='waiting');
   const decided=s.approvals.filter(a=>a.status!=='waiting').slice(0,4);
@@ -222,6 +235,7 @@ async function refresh(){
   refreshKnowledge();
   refreshRoutines();
   refreshSkills();
+  refreshConnections();
 }
 function refreshMetaCounts(){document.querySelectorAll('[data-ws]').forEach(b=>{const c=b.querySelector('.cnt');if(b.dataset.ws===WS&&window.__wait){if(!c){const s=document.createElement('span');s.className='cnt';s.textContent=window.__wait;b.append(s);}else c.textContent=window.__wait;}else if(c)c.remove();});}
 async function decide(id,ok){const s=await api(ok?'/api/approve':'/api/hold',{ws:WS,id});msg('sys','',ok?'Approved.':'Held — nothing sent.');refresh();}
@@ -293,6 +307,29 @@ async function skRemove(slug){await api('/api/skills/remove',{ws:WS,slug});SDETA
 async function skCopy(slug){const s=SKILLS.find(x=>x.slug===slug);try{await navigator.clipboard.writeText(s.body)}catch(e){}msg('sys','','Copied the "'+s.name+'" skill body to your clipboard.');}
 function skEditToggle(){const s=SKILLS.find(x=>x.slug===SDETAIL);const E=$('skedit');if(E.style.display==='block'){E.style.display='none';return;}E.style.display='block';E.innerHTML='<div style="display:grid;gap:8px;border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:12px"><input id="seName" value="'+s.name.replace(/"/g,'&quot;')+'" style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:15px"><input id="seDesc" value="'+(s.description||'').replace(/"/g,'&quot;')+'" style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:15px"><input id="seTrig" value="'+s.triggers.join(', ')+'" style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:15px" placeholder="triggers, comma separated"><textarea id="seBody" rows="7" style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:15px;font-family:inherit">'+s.body.replace(/</g,'&lt;')+'</textarea><button class="mini" style="background:var(--blue);color:#fff;border-color:var(--blue);font-weight:600;padding:10px 16px;justify-self:start" onclick="skEditSave()">Save changes</button></div>';}
 async function skEditSave(){await api('/api/skills/update',{ws:WS,slug:SDETAIL,name:$('seName').value,description:$('seDesc').value,triggers:$('seTrig').value.split(',').map(x=>x.trim()).filter(Boolean),body:$('seBody').value});refreshSkills();}
+/* ---------- Toy school ---------- */
+async function toySchool(reset){
+  const r=await api('/api/toy-school',{ws:WS,reset:!!reset});
+  if(r.error){alert(r.error);return;}
+  if(r.seeded===false&&r.reason){alert(r.reason);return;}
+  msg('sys','','🧸 Toy school '+(reset?'reset and reloaded':'loaded')+': '+r.school+' — '+r.knowledge+' knowledge entries, '+r.approvals+' approvals waiting. Try clicking Ivy or Chief, or open Knowledge.');
+  refresh(); refreshKnowledge(); refreshRoutines();
+}
+/* ---------- Connections ---------- */
+let CONNS=[], CONNOPEN=null;
+async function refreshConnections(){
+  CONNS=(await api('/api/connections')).services||[];
+  $('connGrid').innerHTML=CONNS.map(s=>'<div style="border:1px solid var(--line);border-radius:16px;padding:15px 16px">'
+    +'<div style="display:flex;gap:9px;align-items:center"><span style="font-size:21px">'+s.icon+'</span><b style="font-size:16px;flex:1">'+s.name+'</b>'
+    +(s.configured?'<span style="background:#e6f9e6;color:#157347;border-radius:999px;padding:3px 10px;font-size:12.5px;font-weight:700">Connected</span>':'<span style="background:#f2f2f5;color:var(--dim);border-radius:999px;padding:3px 10px;font-size:12.5px;font-weight:600">Not set up</span>')+'</div>'
+    +'<p style="color:var(--dim);font-size:13.5px;line-height:1.45;margin:8px 0">'+s.blurb+'</p>'
+    +(s.configured?'<div style="font-size:13px;color:var(--faint)">'+Object.entries(s.masked).map(([k,v])=>k+': '+v).join('<br>')+'<br>Set '+(s.source==='ui'?'here in the app':'via .env file')+' · '+(s.applies==='live'?'works right away':'applies on restart')+'</div>':'')
+    +'<button class="mini" style="margin-top:10px;padding:8px 15px" onclick="CONNOPEN=CONNOPEN===\''+s.id+'\'?null:\''+s.id+'\';refreshConnections()">'+(s.configured?'Update':'Connect')+'</button>'
+    +(CONNOPEN===s.id?'<div style="margin-top:12px;display:grid;gap:8px">'+s.fields.map(f=>'<div><label style="display:block;font-size:13px;color:var(--dim);margin-bottom:3px">'+f.label+'</label><input data-ck="'+f.key+'" type="'+(f.secret?'password':'text')+'" placeholder="'+(s.masked[f.key]?s.masked[f.key]:(f.placeholder||''))+'" style="width:100%;border:1px solid var(--line);border-radius:10px;padding:9px 11px;font-size:14.5px"></div>').join('')+'<div style="display:flex;gap:8px"><button class="mini" style="background:var(--blue);color:#fff;border-color:var(--blue);font-weight:600;padding:9px 16px" onclick="connSave(\''+s.id+'\')">Save</button>'+(s.configured&&s.source==='ui'?'<button class="mini" style="color:var(--red);border-color:#f3c2c2;padding:9px 14px" onclick="connDisconnect(\''+s.id+'\')">Disconnect</button>':'')+'</div>'+(s.applies==='restart'?'<p class="hint">Chat bots pick this up the next time bippity starts.</p>':'<p class="hint">Takes effect right away — no restart.</p>')+'</div>':'')
+    +'</div>').join('');
+}
+async function connSave(id){const fields={};document.querySelectorAll('[data-ck]').forEach(i=>{if(i.value.trim())fields[i.dataset.ck]=i.value.trim();});await api('/api/connections',{service:id,fields});CONNOPEN=null;refreshConnections();refresh();}
+async function connDisconnect(id){await api('/api/connections/disconnect',{service:id});CONNOPEN=null;refreshConnections();refresh();}
 const RCHIPS=['Every weekday at 8:30, summarize my inbox','Every Friday at 5 PM, send me what we did this week','Watch a page and tell me when the price drops'];
 async function refreshRoutines(){
   const r=await api('/api/routines?ws='+WS);
@@ -308,6 +345,43 @@ $('send').onclick=()=>{const v=$('brief').value;$('brief').value='';sendBrief(v)
 $('brief').addEventListener('keydown',e=>{if(e.key==='Enter')$('send').click();});
 $('installBtn').onclick=async()=>{const name=$('wsname').value.trim();const r=await api('/api/packs/install',{pack:PACKSEL,name:name||undefined});if(r.installed){msg('sys','','Installed “'+r.installed.manifest.pack+'” as workspace “'+r.installed.workspace+'” — switching to it.');WS=r.installed.workspace;$('wsname').value='';await refreshMeta();refresh();}else{msg('bad','Install failed',(r.errors||['unknown error']).join('; '));}};
 $('tickBtn').onclick=async()=>{const r=await api('/api/watches/tick',{ws:WS});msg('sys','',r.fired&&r.fired.length?('Watches fired: '+r.fired.map(f=>f.watch).join(', ')):'Watches checked — nothing new.');refresh();refreshMeta();};
+/* ---------- Bot profile / config ---------- */
+let BOTOPEN=null;
+function segRow(options,cur,fn){return '<span class="seg">'+options.map(o=>'<button class="'+(cur===o[0]?'on':'')+'" onclick="'+fn+'(\''+o[0]+'\')">'+o[1]+'</button>').join('')+'</span>';}
+async function openBot(id){
+  BOTOPEN=id;
+  const d=await api('/api/bot?ws='+WS+'&bot='+id);
+  if(!d.bot)return;
+  const b=d.bot,c=d.config,isChief=id==='chief';
+  $('botOverlay').style.display='block';
+  $('botHead').style.background=isChief?'linear-gradient(180deg,#f4f9c8,#fdfdf5)':'#fbfbfd';
+  $('botHead').style.borderBottom='1px solid var(--line)';
+  $('botHead').innerHTML='<div style="display:flex;gap:18px;align-items:center"><div style="width:84px;height:84px;border-radius:50%;background:#fff;box-shadow:var(--shadow);display:flex;align-items:center;justify-content:center;font-size:42px">'+(b.emoji||'🤖')+'</div><div style="flex:1"><div style="font-size:31px;font-weight:800;letter-spacing:-.6px">'+b.name+'</div><div style="color:var(--dim);font-size:16px">'+(isChief?'Chief of staff · runs the team':b.role)+'</div><div style="display:flex;gap:8px;margin-top:10px"><button class="mini" style="border-radius:50%;width:38px;height:38px;padding:0" title="Chat with '+b.name+'" onclick="closeBot();document.getElementById(\'brief\').focus()">💬</button><button class="mini" style="border-radius:50%;width:38px;height:38px;padding:0" title="Email delivery" onclick="closeBot();document.querySelector(\'#connGrid\').scrollIntoView({behavior:\'smooth\'})">✉️</button></div></div><button onclick="closeBot()" style="border:0;background:#fff;border-radius:50%;width:38px;height:38px;font-size:17px;cursor:pointer;box-shadow:var(--shadow)">✕</button></div>';
+  const sec=(title,right,inner)=>'<div style="border:1px solid var(--line);border-radius:16px;padding:15px 17px;margin-top:12px"><div style="display:flex;align-items:baseline;gap:10px"><b style="font-size:16.5px;flex:1">'+title+'</b><span style="color:var(--faint);font-size:13.5px">'+(right||'')+'</span></div>'+(inner||'')+'</div>';
+  const memLines=String(d.memory||'').split('\n').filter(x=>x.trim()).slice(0,5);
+  $('botBody').innerHTML=
+    sec('Team',isChief?'Runs the team':'Reports to Chief','<p style="color:var(--dim);font-size:14.5px;margin-top:7px;line-height:1.5">'+(isChief?'Every specialist reports here; '+b.name+' sees all of their work.':'Works under Chief, who reviews everything before it reaches you.')+'</p><button class="mini" style="margin-top:9px;padding:8px 14px" onclick="closeBot();SPANE=\'org\';document.getElementById(\'settingsOverlay\').style.display=\'block\';snavRender();paneRender()">Open the org chart ›</button>')
+    +sec('AI',(((window.__status||{}).team||[]).find(t=>t.id===id)||{}).modelStatus&&(((window.__status||{}).team||[]).find(t=>t.id===id)).modelStatus.ok?'live':'offline fallback')+' · '+(d.bot.model),'<div style="display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap"><span style="color:var(--dim);font-size:14.5px">Model</span><select id="bcModel" style="border:1px solid var(--line);border-radius:999px;padding:8px 12px;font-size:14.5px"><option value="">Pack default ('+d.bot.model+')</option>'+['openai','claude','grok','ollama'].map(m=>'<option value="'+m+'"'+(c.model===m?' selected':'')+'>'+m+'</option>').join('')+'</select><span style="color:var(--dim);font-size:14.5px">Thinking</span>'+segRow([['auto','Auto'],['low','Low'],['medium','Medium'],['high','High']],c.thinking,'bcThinking')+'</div><p class="hint">Thinks hard on tough tasks, quick on simple ones. Model keys live under Connections.</p>')
+    +sec('How I work','','<p style="color:var(--dim);font-size:14px;margin-top:6px">'+b.name+' keeps this in mind in chats, tasks and calls.</p><textarea id="bcHow" rows="3" style="width:100%;border:1px solid var(--line);border-radius:13px;padding:11px 13px;font-size:15px;margin-top:9px;font-family:inherit" placeholder="How should '+b.name+' work? For example: keep replies short, offer two options not five, never contact a family before 8 AM.">'+(c.howIWork||'').replace(/</g,'&lt;')+'</textarea><button class="mini" style="background:#1d1d1f;color:#fff;border-color:#1d1d1f;font-weight:600;padding:9px 17px;margin-top:9px" onclick="bcSaveHow()">Save</button>')
+    +sec('Approvals','Asks before it sends, posts, deletes or pays','<div style="margin-top:10px">'+segRow([['ask','Ask first'],['just','Just do it']],c.approvalsMode,'bcApprovals')+'</div><p class="hint">“Just do it” runs this bot’s approve-tier work without queueing — your choice, per bot. Payments and promises are still refused in code, in both modes.</p>')
+    +sec('Email',d.delivery.agentmail?'Its own inbox':'No inbox yet','<p style="color:var(--dim);font-size:14.5px;margin-top:7px;line-height:1.5">'+(d.delivery.smtp?'Sends approved mail through your connected SMTP.':'Connect Email sending (SMTP) or AgentMail under Connections to give '+b.name+' a working inbox.')+'</p>')
+    +sec('Contact',d.channels.some(x=>x.configured)?'Reachable':'Not connected yet','<p style="color:var(--dim);font-size:14.5px;margin-top:7px">'+d.channels.map(x=>(x.channel==='slack'?'Slack':'Telegram')+': '+(x.configured?'connected':'not set up')).join(' · ')+'. Manage under Connections.</p>')
+    +sec('Skills',d.skills.length+' skill'+(d.skills.length===1?'':'s'),'<div style="margin-top:8px;display:flex;gap:7px;flex-wrap:wrap">'+(d.skills.map(s=>'<button class="chip" style="border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 12px;font-size:14px;cursor:pointer" onclick="closeBot();SDETAIL=\''+s.slug+'\';refreshSkills();document.getElementById(\'skview\').scrollIntoView({behavior:\'smooth\'})">📁 '+s.name+' · '+s.status+'</button>').join('')||'<span style="color:var(--dim);font-size:14.5px">None assigned yet — add one in the Skills section.</span>')+'</div>')
+    +sec('Routines','','<p style="color:var(--dim);font-size:14.5px;margin-top:7px">Scheduled briefs for this workspace run through '+b.name+'’s guardrails like any other brief. See the Routines section.</p>')
+    +sec('Memory','Uses the team’s memory','<div style="margin-top:8px">'+(memLines.length?memLines.map(l=>'<p style="font-size:14.5px;color:var(--dim);line-height:1.5">'+l.replace(/</g,'&lt;')+'</p>').join(''):'<p style="color:var(--dim);font-size:14.5px">Nothing remembered yet — memory grows as '+b.name+' works.</p>')+'</div>')
+    +sec('Computer',b.computer||'sandbox','<div style="display:flex;gap:10px;align-items:center;margin-top:10px"><span style="color:var(--dim);font-size:14.5px">Works on</span>'+segRow([['auto','Auto'],['cloud','Cloud'],['local','This machine']],c.worksOn,'bcWorksOn')+'</div>')
+    +'<h3 style="font-size:19px;margin:22px 0 4px">Where to find '+b.name+'</h3><p style="color:var(--faint);font-size:13.5px;text-align:right;margin-top:-20px">Add '+b.name+' like a teammate</p>'
+    +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-top:12px">'
+    +[['💬','Slack',d.channels.find(x=>x.channel==='slack'&&x.configured)?'Connected — add to channels':'Connect under Connections'],['✈️','Telegram',d.channels.find(x=>x.channel==='telegram'&&x.configured)?'Its own Telegram bot':'Connect under Connections'],['🎮','Discord','Coming soon'],['💬','iMessage','Coming soon'],['✉️','Email',d.delivery.agentmail?'Its own inbox':'Sends via your connected email'],['🟢','WhatsApp','Coming soon']].map(x=>'<div style="border:1px solid var(--line);border-radius:15px;padding:13px 15px;'+(x[2]==='Coming soon'?'opacity:.55':'')+'"><div style="font-size:19px">'+x[0]+'</div><b style="font-size:15.5px">'+x[1]+'</b><div style="color:var(--dim);font-size:13.5px">'+x[2]+'</div></div>').join('')+'</div>';
+}
+function closeBot(){$('botOverlay').style.display='none';BOTOPEN=null;}
+$('botOverlay').addEventListener('click',e=>{if(e.target.id==='botOverlay')closeBot();});
+async function bcSave(patch){await api('/api/bot/config',{ws:WS,bot:BOTOPEN,...patch});}
+async function bcSaveHow(){await bcSave({howIWork:$('bcHow').value});msg('sys','','Saved — that is how '+BOTOPEN+' will work from now on.');}
+async function bcThinking(v){await bcSave({thinking:v});openBot(BOTOPEN);}
+async function bcApprovals(v){await bcSave({approvalsMode:v});openBot(BOTOPEN);refresh();}
+async function bcWorksOn(v){await bcSave({worksOn:v});openBot(BOTOPEN);}
+document.addEventListener('change',e=>{if(e.target&&e.target.id==='bcModel'){bcSave({model:e.target.value});}});
 /* ---------- Settings ---------- */
 const SNAV_ACCOUNT=[['profile','👤','Profile'],['plan','💳','Plan and credit'],['usage','📊','Usage'],['reach','📱','How bots reach you'],['privacy','🛡️','Privacy'],['computer','💻','This computer']];
 const SNAV_WS=[['general','☀️','General'],['team','👥','Team'],['org','🗂️','Org chart'],['bots','🤖','Bots'],['logins','🔑','Logins'],['emailphone','✉️','Email and phone']];
