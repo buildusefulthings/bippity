@@ -1,0 +1,14 @@
+# What this bot may use. Anything not listed is not available to it.
+bot: NewBot
+model: claude
+computer: sandbox
+channels: [web]
+connectors:
+  - id: gmail
+    account: workspace-main
+    scopes: [read, draft]   # send requires a guardrail entry below
+memory:
+  workspace: true
+  own_inbox: true
+schedule:
+  routines: []              # e.g. { cron: "0 7 * * 1-5", job: morning-brief }

@@ -1,0 +1,12 @@
+# Guardrail tiers for this bot. The runtime enforces these in code.
+# auto:     runs without asking (reads, lookups, internal drafts)
+# approve:  queues in the Approvals inbox; runs only after a human tap
+# never:    refused by the runtime, always — the classes in
+#           NEVER_CLASSES (pay, sign, commit, delete, share credentials)
+#           cannot be promoted by any config, including this file.
+bot: NewBot
+tiers:
+  auto: [read_inbox, read_calendar, lookup, draft_message, update_internal_record]
+  approve: [send_message, send_email, book_appointment, create_external_record]
+  never: [pay, sign_contract, commit_price_or_terms, delete_data, share_credentials]
+shadow_mode: true
