@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>bippity — live runtime</title>
+<style>
+  :root{--bg:#0f1115;--panel:#171a21;--panel2:#1e222c;--line:#2a2f3a;--txt:#e8eaf0;--dim:#9aa3b2;--acc:#7dd87d;--warn:#ffd166;--bad:#ff7b7b;--blue:#7ab8ff}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--txt);font-size:15px;line-height:1.45}
+  header{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+  .logo{font-size:24px;font-weight:800;letter-spacing:-.5px}.logo span{color:var(--acc)}
+  .tag{color:var(--dim);font-size:13px}
+  .stats{display:flex;gap:10px;flex-wrap:wrap}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 12px;text-align:center;min-width:86px}
+  .stat b{display:block;font-size:19px}.stat small{color:var(--dim);font-size:11px;text-transform:uppercase}
+  .stat.never b{color:var(--acc)}
+  main{display:grid;grid-template-columns:260px 1fr 330px;gap:14px;padding:14px;max-width:1400px;margin:0 auto}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .card h2{font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:var(--dim);margin-bottom:10px}
+  button{cursor:pointer;border:1px solid var(--line);background:var(--panel2);color:var(--txt);border-radius:9px;padding:9px 12px;font-size:14px}
+  button:hover{border-color:var(--acc)} button:disabled{opacity:.45}
+  .packbtns{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}.packbtns button{text-align:left}
+  .packbtns button.on{border-color:var(--acc);background:#22301f}
+  .bot{display:flex;gap:10px;padding:9px 8px;border-radius:9px;align-items:flex-start}
+  .avatar{width:34px;height:34px;border-radius:50%;background:#2c3444;display:flex;align-items:center;justify-content:center;font-size:17px;flex:none}
+  .bot b{font-size:14px}.bot .role{display:block;color:var(--dim);font-size:12px}
+  .pill{display:inline-block;font-size:11px;border-radius:20px;padding:0 7px;margin-top:3px;border:1px solid #2c425f;color:var(--blue)}
+  .pill.off{border-color:#4a3b2c;color:var(--warn)}
+  #chat{display:flex;flex-direction:column;height:600px}
+  #msgs{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:10px}
+  .msg{max-width:88%;padding:10px 12px;border-radius:12px;font-size:14px;white-space:pre-wrap}
+  .msg .who{font-size:11px;color:var(--dim);display:block;margin-bottom:3px}
+  .msg.chief{background:#22301f;align-self:flex-start;border:1px solid #33512e}
+  .msg.bot{background:var(--panel2);align-self:flex-start;border:1px solid var(--line)}
+  .msg.user{background:#20314d;align-self:flex-end;border:1px solid #2e4a77}
+  .msg.bad{background:#2a1717;align-self:flex-start;border:1px solid #6e3232}
+  .msg.sys{background:transparent;color:var(--dim);align-self:center;font-size:12px;text-align:center;border:none}
+  #briefRow{display:flex;gap:8px;margin-top:12px}
+  #brief{flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:9px;color:var(--txt);padding:10px 12px;font-size:14px}
+  .quick{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.quick button{font-size:12px;padding:6px 9px}
+  .approval{border:1px solid #6b5a2e;background:#262014;border-radius:10px;padding:11px;margin-bottom:10px}
+  .approval p{font-size:13px;color:#e6ddc2;margin:5px 0 9px;white-space:pre-wrap}
+  .approval .acts{display:flex;gap:8px}.approval .acts button{flex:1}
+  .approval .ok{background:#234023;border-color:#356b35}
+  .doneItem{font-size:13px;color:var(--dim);padding:6px 0;border-bottom:1px dashed #232833}
+  #log{font-size:12px;color:var(--dim);max-height:280px;overflow-y:auto}
+  #log div{padding:4px 0;border-bottom:1px dashed #232833}
+  .empty{color:var(--dim);font-size:13px}
+  footer{padding:10px 20px 22px;color:var(--dim);font-size:12px;text-align:center}
+  @media (max-width:980px){main{grid-template-columns:1fr}#chat{height:520px}}
+</style>
+</head>
+<body>
+<header>
+  <div><div class="logo">bippity<span>.</span> live</div>
+  <div class="tag">v0.2 runtime — real server, real guardrails, file memory. Shadow mode: approved actions are logged as sent, not transmitted. <a href="/sim" style="color:var(--blue)">v0.1 simulation →</a></div></div>
+  <div class="stats">
+    <div class="stat"><b id="stDone">0</b><small>Done</small></div>
+    <div class="stat"><b id="stAppr">0</b><small>Approved</small></div>
+    <div class="stat"><b id="stWait">0</b><small>Waiting on you</small></div>
+    <div class="stat"><b id="stRef">0</b><small>Refused</small></div>
+    <div class="stat never"><b id="stNever">0</b><small>Never Auto executed</small></div>
+  </div>
+</header>
+<main>
+  <section class="card">
+    <h2>Workspace</h2>
+    <div class="packbtns" id="wsbtns"><p class="empty">Loading…</p></div>
+    <h2>Install a pack</h2>
+    <div id="packs" class="empty">Loading…</div>
+    <div style="display:flex;gap:6px;margin:8px 0 14px"><input id="wsname" placeholder="new workspace name" style="flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:9px;color:var(--txt);padding:8px 10px;font-size:13px"><button id="installBtn" style="font-size:13px">Install</button></div>
+    <h2>Team</h2><div id="team"><p class="empty">Loading…</p></div>
+    <h2 style="margin-top:14px">Models</h2><div id="models" class="empty"></div>
+  </section>
+  <section class="card" id="chat">
+    <h2>Brief Chief — in your own words</h2>
+    <div id="msgs"><div class="msg sys">Connecting to the runtime…</div></div>
+    <div id="briefRow"><input id="brief" placeholder="e.g. New inquiry from a parent on Facebook" autocomplete="off"><button id="send" class="primary" style="background:#234023;border-color:#356b35">Brief →</button></div>
+    <div class="quick" id="quick"></div>
+  </section>
+  <aside>
+    <section class="card" style="margin-bottom:14px"><h2>Approvals inbox</h2><div id="approvals"><p class="empty">Loading…</p></div></section>
+    <section class="card" style="margin-bottom:14px"><h2>Watches</h2><div id="watches"><p class="empty">Loading…</p></div><button id="tickBtn" style="margin-top:8px;font-size:13px">Check watches now</button></section>
+    <section class="card"><h2>Activity log</h2><div id="log"></div></section>
+  </aside>
+</main>
+<footer>State persists on the server under .data/workspaces/. Bots without a model key run in deterministic offline mode — add keys in .env.local to go live per bot.</footer>
+<script>
+"use strict";
+let WS='enrollment';
+const $=id=>document.getElementById(id);
+const QUICK={enrollment:['Morning brief','New inquiry from a parent on Facebook','The 10am tour was a no-show','An application has stalled for 5 days','Just pay the deposit for them'],ops:['Morning brief','Chase the unconfirmed PO with the supplier','Match invoice INV-8812','Check inventory — are we low on anything?','Just pay invoice INV-8812 to keep them happy']};
+function msg(cls,who,text){const d=document.createElement('div');d.className='msg '+cls;const w=document.createElement('span');w.className='who';w.textContent=who;const t=document.createElement('span');t.textContent=text;d.append(w,t);$('msgs').append(d);$('msgs').scrollTop=$('msgs').scrollHeight;}
+async function api(path,body){const r=await fetch(path,{method:body?'POST':'GET',headers:{'content-type':'application/json'},body:body?JSON.stringify(body):undefined});return r.json();}
+let PACKSEL='enrollment';
+async function refreshMeta(){
+  const w=await api('/api/workspaces');
+  $('wsbtns').innerHTML=w.workspaces.map(x=>'<button data-ws="'+x.id+'" class="'+(x.id===WS?'on':'')+'">'+(x.pack==='enrollment'?'🏫':x.pack==='ops'?'🖨️':'📦')+' '+x.id+(x.installed?' (installed)':'')+'</button>').join('');
+  document.querySelectorAll('[data-ws]').forEach(b=>b.onclick=()=>{WS=b.dataset.ws;$('msgs').innerHTML='';msg('sys','','Switched to workspace "'+WS+'" — state is separate per workspace.');refresh();});
+  const p=await api('/api/packs');
+  $('packs').innerHTML=p.available.map(x=>'<label style="display:block;font-size:13px;padding:3px 0"><input type="radio" name="packsel" value="'+x.id+'" '+(x.id===PACKSEL?'checked':'')+'> '+x.name+' — '+x.bots+' bots</label>').join('')+(p.installed.length?'<div style="margin-top:6px">Installed: '+p.installed.map(m=>m.workspace).join(', ')+'</div>':'');
+  document.querySelectorAll('[name=packsel]').forEach(r=>r.onchange=()=>PACKSEL=r.value);
+  const wt=await api('/api/watches?ws='+WS);
+  $('watches').innerHTML=wt.watches.length?wt.watches.map(x=>'<div class="doneItem">👁 '+x.name+' · '+x.type+' · '+x.target+(x.last?' · last fired '+String(x.last.at).slice(0,16).replace("T"," ")+' ('+x.result+')':' · not fired yet')+'</div>').join(''):'<p class="empty">No watches in this workspace.</p>';
+}
+async function refresh(){
+  const s=await api('/api/status?ws='+WS);
+  $('stDone').textContent=s.counters.done;$('stAppr').textContent=s.counters.approved;$('stWait').textContent=s.counters.waiting;$('stRef').textContent=s.counters.refused;$('stNever').textContent=s.counters.neverExecuted;
+  $('team').innerHTML=s.team.map(b=>'<div class="bot"><div class="avatar">'+(b.emoji||'🤖')+'</div><div><b>'+b.name+'</b><span class="role">'+b.role+'</span><span class="pill'+(b.modelStatus.ok?'':' off')+'">'+b.model+' · '+(b.modelStatus.ok?b.modelStatus.mode:'offline')+'</span></div></div>').join('');
+  $('models').innerHTML='Spend today: $'+s.models.spentTodayUsd+' / $'+s.models.capUsd+' cap · live calls: '+s.models.liveCalls+'<br>Shadow mode: '+(s.shadow?'ON (approvals are logged, not sent)':'OFF — approvals deliver for real')+'<br>Delivery transports: '+Object.keys(s.delivery).filter(k=>s.delivery[k]).join(', ')+(Object.values(s.delivery).some(Boolean)?'':'none configured');
+  const waiting=s.approvals.filter(a=>a.status==='waiting');
+  const decided=s.approvals.filter(a=>a.status!=='waiting').slice(0,4);
+  $('approvals').innerHTML=(waiting.length?waiting.map(a=>'<div class="approval"><b>'+a.bot+' — '+a.title+'</b><p>'+a.body+'</p><div class="acts"><button class="ok" onclick="decide(\''+a.id+'\',true)">✓ Approve &amp; send</button><button onclick="decide(\''+a.id+'\',false)">✕ Hold</button></div></div>').join(''):'<p class="empty">Nothing waiting.</p>')+decided.map(a=>'<div class="doneItem">'+(a.status==='approved'?'✓':'✕')+' '+a.bot+' — '+a.title+' ('+a.status+(a.delivery?' · delivery: '+a.delivery.status+(a.delivery.via?' via '+a.delivery.via:''):'')+')</div>').join('');
+  $('log').innerHTML=s.log.map(l=>'<div><b>'+(l.bot||l.kind)+'</b> '+(l.title||l.action||l.text||l.kind)+' — '+String(l.at).slice(11,19)+'</div>').join('')||'<div>No activity yet.</div>';
+  $('quick').innerHTML=(QUICK[s.packId]||[]).map(q=>'<button onclick="quickSend(this)">'+q+'</button>').join('');
+}
+async function decide(id,ok){const s=await api(ok?'/api/approve':'/api/hold',{ws:WS,id});msg('sys','',ok?'Approved — logged as sent (shadow).':'Held — nothing sent.');refresh();}
+async function sendBrief(text){
+  if(!text.trim())return;
+  msg('user','You',text);
+  const r=await api('/api/brief',{ws:WS,text});
+  if(r.type==='refused')msg('bad','Guardrail ⛔',r.message);
+  else if(r.type==='queued')msg('bot',r.from+' → Approvals',r.message+'\n\nQueued for your tap: "'+r.approval.title+'"');
+  else msg(r.from==='Chief'?'chief':'bot',r.from,r.message);
+  refresh();
+}
+function quickSend(b){sendBrief(b.textContent);}
+$('send').onclick=()=>{const v=$('brief').value;$('brief').value='';sendBrief(v);};
+$('brief').addEventListener('keydown',e=>{if(e.key==='Enter')$('send').click();});
+$('installBtn').onclick=async()=>{const name=$('wsname').value.trim();const r=await api('/api/packs/install',{pack:PACKSEL,name:name||undefined});if(r.installed){msg('sys','','Installed pack "'+r.installed.manifest.pack+'" as workspace "'+r.installed.workspace+'" — switching to it.');WS=r.installed.workspace;$('wsname').value='';await refreshMeta();refresh();}else{msg('bad','Install failed',(r.errors||['unknown error']).join('; '));}};
+$('tickBtn').onclick=async()=>{const r=await api('/api/watches/tick',{ws:WS});msg('sys','',r.fired&&r.fired.length?('Watches fired: '+r.fired.map(f=>f.watch+' → '+f.result).join(', ')):'Watches checked — nothing new.');refresh();refreshMeta();};
+refreshMeta().then(()=>refresh()).then(()=>msg('chief','Chief 🧭','Runtime is live. Brief me in your own words — try an inquiry, a no-show, an invoice… or try telling me to pay something, and watch the guardrail answer.'));
+</script>
+</body>
+</html>
