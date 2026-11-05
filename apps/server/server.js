@@ -35,6 +35,11 @@ const { ProxmoxDriver } = require(path.join(ROOT, 'packages/computers/proxmox'))
 const { RoutineRunner } = require(path.join(ROOT, 'packages/channels/routines'));
 const { WatchRunner } = require(path.join(ROOT, 'packages/channels/watches'));
 const { listPacks, installPack, listInstalled } = require(path.join(ROOT, 'packages/harness/pack-installer'));
+const slackMod = require(path.join(ROOT, 'packages/channels/slack'));
+const tgMod = require(path.join(ROOT, 'packages/channels/telegram'));
+const { ChannelDispatcher } = require(path.join(ROOT, 'packages/channels/dispatcher'));
+const slackBot = new slackMod.SlackBot(process.env);
+const telegramBot = new tgMod.TelegramBot(process.env);
 const delivery = new DeliveryService(process.env);
 const proxmox = new ProxmoxDriver(process.env, { pollMs: 800 });
 
@@ -66,6 +71,38 @@ function send(res, code, body, type = 'application/json') {
   res.writeHead(code, { 'content-type': type + '; charset=utf-8' }); res.end(data);
 }
 function body(req) { return new Promise((res) => { let b = ''; req.on('data', (c) => b += c); req.on('end', () => { try { res(JSON.parse(b || '{}')); } catch { res({}); } }); }); }
+function rawBody(req) { return new Promise((res) => { const chunks = []; req.on('data', (c) => chunks.push(c)); req.on('end', () => res(Buffer.concat(chunks).toString('utf8'))); }); }
+const dispatcher = new ChannelDispatcher({ workspaces, defaultWorkspace: process.env.BIPPITY_CHANNEL_WORKSPACE || 'enrollment' });
+
+async function handleSlackPayload(raw, res) {
+  let payload; try { payload = JSON.parse(raw || '{}'); } catch { return send(res, 400, { error: 'bad json' }); }
+  const ev = slackMod.parseEvent(payload);
+  if (!ev) return send(res, 200, { ok: true });
+  if (ev.kind === 'challenge') return send(res, 200, { challenge: ev.challenge });
+  if (ev.kind === 'brief' && ev.text) {
+    const r = await dispatcher.brief({ text: ev.text, user: ev.user, ownerId: slackBot.owner, channel: 'slack' });
+    if (r.type === 'queued') await slackBot.sendMessage({ channel: ev.channel, text: r.text, blocks: slackMod.approvalBlocks(r, r.wsId), threadTs: ev.threadTs });
+    else await slackBot.sendMessage({ channel: ev.channel, text: r.text, threadTs: ev.threadTs });
+    return send(res, 200, { ok: true, result: r.type });
+  }
+  return send(res, 200, { ok: true });
+}
+async function handleTelegramUpdate(update, res) {
+  const ev = tgMod.parseUpdate(update);
+  if (!ev || ev.kind === 'ignore') return send(res, 200, { ok: true });
+  if (ev.kind === 'brief') {
+    const r = await dispatcher.brief({ text: ev.text, user: ev.user, ownerId: telegramBot.owner, channel: 'telegram' });
+    await telegramBot.sendMessage({ chatId: ev.chatId, text: r.text, replyMarkup: r.type === 'queued' ? tgMod.approvalKeyboard(r, r.wsId) : undefined });
+    return send(res, 200, { ok: true, result: r.type });
+  }
+  if (ev.kind === 'callback') {
+    const r = await dispatcher.act({ action: ev.action, wsId: ev.ws, id: ev.id, user: ev.user, ownerId: telegramBot.owner });
+    await telegramBot.answerCallback(ev.callbackId, r.text);
+    await telegramBot.sendMessage({ chatId: ev.chatId, text: r.text });
+    return send(res, 200, { ok: true });
+  }
+  return send(res, 200, { ok: true });
+}
 const wsOf = (q) => workspaces[q.ws] || workspaces.enrollment;
 
 const server = http.createServer(async (req, res) => {
@@ -83,6 +120,41 @@ const server = http.createServer(async (req, res) => {
     if (u.pathname === '/api/connectors') { const sb = await createSandbox({ dataRoot: DATA, preferred: process.env.BIPPITY_COMPUTER_DRIVER || 'docker' }); return send(res, 200, { connectors: connectorStatus(), delivery: delivery.status(), shadow: process.env.BIPPITY_SHADOW_MODE !== '0', sandbox: sb.constructor.name, sandboxFallback: sb.fallbackReason || null }); }
     if (u.pathname === '/api/proxmox') return send(res, 200, await proxmox.overview());
     if (u.pathname === '/api/sandbox/exec' && req.method === 'POST') { const b = await body(req); const sb = await createSandbox({ dataRoot: DATA, preferred: process.env.BIPPITY_COMPUTER_DRIVER || 'docker' }); if (sb.constructor.name === 'ProxmoxDriver') await sb.start(b.bot || 'chief'); return send(res, 200, await sb.exec(b.bot || 'chief', String(b.cmd || 'echo ok'))); }
+    if (u.pathname === '/api/channels') return send(res, 200, { channels: [slackBot.status(), telegramBot.status()], relay: { secretSet: !!process.env.RELAY_SECRET, webhookBase: '/api/relay/<slack|telegram> via apps/relay (see docs/HOSTED_RELAY.md)' }, defaultWorkspace: dispatcher.defaultWorkspace });
+    if (u.pathname === '/api/slack/events' && req.method === 'POST') {
+      const raw = await rawBody(req);
+      if (slackBot.signingSecret && !slackMod.verifySignature({ signingSecret: slackBot.signingSecret, timestamp: req.headers['x-slack-request-timestamp'], rawBody: raw, signature: req.headers['x-slack-signature'] })) return send(res, 401, { error: 'bad slack signature' });
+      return handleSlackPayload(raw, res);
+    }
+    if (u.pathname === '/api/slack/commands' && req.method === 'POST') {
+      const form = new URLSearchParams(await rawBody(req));
+      const text = form.get('text') || '';
+      const r = await dispatcher.brief({ text, user: form.get('user_id'), ownerId: slackBot.owner, channel: 'slack' });
+      return send(res, 200, { response_type: 'ephemeral', text: r.text, blocks: r.type === 'queued' ? slackMod.approvalBlocks(r, r.wsId) : undefined });
+    }
+    if (u.pathname === '/api/slack/interactions' && req.method === 'POST') {
+      const form = new URLSearchParams(await rawBody(req));
+      const ix = slackMod.parseInteraction(form.get('payload'));
+      if (!ix || !ix.action) return send(res, 400, { error: 'unknown interaction' });
+      const r = await dispatcher.act({ action: ix.action, wsId: ix.ws, id: ix.id, user: ix.user, ownerId: slackBot.owner });
+      return send(res, 200, { replace_original: false, text: r.text });
+    }
+    if (u.pathname === '/api/telegram/webhook' && req.method === 'POST') {
+      if (telegramBot.webhookSecret && req.headers['x-telegram-bot-api-secret-token'] !== telegramBot.webhookSecret) return send(res, 401, { error: 'bad telegram secret' });
+      return handleTelegramUpdate(await body(req), res);
+    }
+    const relay = u.pathname.match(/^\/api\/relay\/(slack|telegram)$/);
+    if (relay && req.method === 'POST') {
+      if (!process.env.RELAY_SECRET || req.headers['x-bippity-relay-secret'] !== process.env.RELAY_SECRET) return send(res, 401, { error: 'bad relay secret' });
+      const raw = await rawBody(req);
+      if (relay[1] === 'slack') {
+        if (slackBot.signingSecret && !slackMod.verifySignature({ signingSecret: slackBot.signingSecret, timestamp: req.headers['x-slack-request-timestamp'], rawBody: raw, signature: req.headers['x-slack-signature'] })) return send(res, 401, { error: 'bad slack signature' });
+        return handleSlackPayload(raw, res);
+      }
+      if (telegramBot.webhookSecret && req.headers['x-telegram-bot-api-secret-token'] !== telegramBot.webhookSecret) return send(res, 401, { error: 'bad telegram secret' });
+      let upd; try { upd = JSON.parse(raw || '{}'); } catch { return send(res, 400, { error: 'bad json' }); }
+      return handleTelegramUpdate(upd, res);
+    }
     if (u.pathname === '/api/memory') { const w = wsOf(q); return send(res, 200, { bot: q.bot, memory: w.memory.load(w.id, q.bot || 'chief') }); }
     if (u.pathname === '/api/brief' && req.method === 'POST') { const b = await body(req); if (!b.text) return send(res, 400, { error: 'text required' }); return send(res, 200, await wsOf(b).brief(String(b.text), 'web')); }
     if (u.pathname === '/api/approve' && req.method === 'POST') { const b = await body(req); const a = await wsOf(b).approve(b.id); return a ? send(res, 200, { approved: a, delivery: a.delivery, status: wsOf(b).status() }) : send(res, 404, { error: 'no waiting approval with that id' }); }
