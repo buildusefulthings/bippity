@@ -26,6 +26,9 @@ if (fs.existsSync(envFile)) {
   }
 }
 
+const { ConnectionsStore } = require(path.join(ROOT, 'packages/harness/connections'));
+const connectionsStore = new ConnectionsStore(path.join(ROOT, '.data'));
+connectionsStore.overlay(process.env); // UI-saved connections win over .env.local
 const { loadPack } = require(path.join(ROOT, 'packages/harness/persona-loader'));
 const { Workspace } = require(path.join(ROOT, 'packages/harness/runtime'));
 const { connectorStatus } = require(path.join(ROOT, 'packages/connectors/adapters'));
@@ -302,6 +305,55 @@ const server = http.createServer(async (req, res) => {
       if (billing.webhookSecret && !verifyStripeSignature({ secret: billing.webhookSecret, header: req.headers['stripe-signature'], rawBody: raw })) return send(res, 400, { error: 'bad stripe signature' });
       let event; try { event = JSON.parse(raw || '{}'); } catch { return send(res, 400, { error: 'bad json' }); }
       try { return send(res, 200, { received: true, result: billing.handleEvent(event) }); } catch (e) { return send(res, 500, { error: e.message }); }
+    }
+    if (u.pathname === '/api/toy-school' && req.method === 'POST') {
+      const b = await body(req); const w = wsOf(b);
+      if (w.pack.id !== 'enrollment') return send(res, 400, { error: 'The toy school belongs to the enrollment workspace.' });
+      const toy = require(path.join(ROOT, 'packages/harness/toy-school'));
+      if (b.reset) {
+        toy.resetToySchool(w);
+        const r0 = routineRunners[w.id]; if (r0) { r0.routines = []; }
+      }
+      const r = await toy.seedToySchool(w);
+      if (r.seeded && r.routine) {
+        const runner = routineRunners[w.id];
+        if (runner && !runner.routines.some((x) => x.name === r.routine.name)) { runner.routines.push(r.routine); fs.writeFileSync(path.join(DATA, 'workspaces', w.id, 'routines.json'), JSON.stringify(runner.routines, null, 2)); }
+      }
+      return send(res, 200, { ...r, status: w.status() });
+    }
+    if (u.pathname === '/api/bot' && req.method === 'GET') {
+      const w = wsOf(q); const bot = w.bots.find((b) => b.id === q.bot);
+      if (!bot) return send(res, 404, { error: 'no such bot in this workspace' });
+      const cfg = w.botConfig.get(w.id, bot.id);
+      const skills = w.skills.list(w.id).filter((s) => s.bots.length === 0 || s.bots.includes(bot.id));
+      return send(res, 200, { bot: { id: bot.id, name: bot.name, emoji: bot.emoji, role: bot.role, model: cfg.model || bot.model, computer: bot.computer }, config: cfg, memory: w.memory.load(w.id, bot.id), skills: skills.map((s) => ({ slug: s.slug, name: s.name, status: s.status })), delivery: w.delivery.status(), channels: [slackBot.status(), telegramBot.status()] });
+    }
+    if (u.pathname === '/api/bot/config' && req.method === 'POST') {
+      const b = await body(req); const w = wsOf(b);
+      if (!w.bots.some((x) => x.id === b.bot)) return send(res, 404, { error: 'no such bot in this workspace' });
+      try { return send(res, 200, { config: w.botConfig.update(w.id, b.bot, b) }); } catch (err) { return send(res, 400, { error: err.message }); }
+    }
+    if (u.pathname === '/api/connections' && req.method === 'GET') return send(res, 200, { services: connectionsStore.status(process.env) });
+    if (u.pathname === '/api/connections' && req.method === 'POST') {
+      const b = await body(req);
+      try {
+        connectionsStore.set(b.service, b.fields || {});
+        connectionsStore.overlay(process.env);
+        for (const w of Object.values(workspaces)) w.applyEnv(process.env);
+        return send(res, 200, { services: connectionsStore.status(process.env), applied: 'live workspaces rebuilt; chat bots pick this up on restart' });
+      } catch (err) { return send(res, 400, { error: err.message }); }
+    }
+    if (u.pathname === '/api/connections/disconnect' && req.method === 'POST') {
+      const b = await body(req);
+      try {
+        const svc = connectionsStore.status(process.env).find((s) => s.id === b.service);
+        connectionsStore.disconnect(b.service);
+        if (svc) for (const f of svc.fields) delete process.env[f.key];
+        // .env.local values (if any) come back on next boot; for this session, re-overlay what's stored
+        connectionsStore.overlay(process.env);
+        for (const w of Object.values(workspaces)) w.applyEnv(process.env);
+        return send(res, 200, { services: connectionsStore.status(process.env) });
+      } catch (err) { return send(res, 400, { error: err.message }); }
     }
     if (u.pathname === '/api/skills' && req.method === 'GET') { const w = wsOf(q); return send(res, 200, { skills: w.skills.list(w.id) }); }
     if (u.pathname === '/api/skills' && req.method === 'POST') { const b = await body(req); const w = wsOf(b); try { return send(res, 200, { created: w.skills.create(w.id, b) }); } catch (err) { return send(res, 400, { error: err.message }); } }
