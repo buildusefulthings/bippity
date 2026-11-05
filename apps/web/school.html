@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>bippity for microschools — Fill every seat</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif;background:#fff;color:#111;-webkit-font-smoothing:antialiased}
+  a{color:inherit}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 26px}
+  header{display:flex;align-items:center;gap:26px;padding:20px 0}
+  .logo{font-size:24px;font-weight:800;letter-spacing:-.5px;text-decoration:none}
+  .logo i{font-style:normal}
+  nav{margin-left:auto;display:flex;gap:24px;align-items:center;font-size:16px}
+  nav a{text-decoration:none}
+  .btn{display:inline-block;background:#111;color:#fff;border-radius:999px;padding:14px 26px;font-weight:600;text-decoration:none;font-size:16.5px}
+  .btn.small{padding:10px 20px;font-size:15px}
+  .hero{display:grid;grid-template-columns:1.05fr .95fr;gap:30px;padding:34px 0 20px;align-items:start}
+  .chips{display:flex;gap:9px;align-items:center;margin-bottom:22px}
+  .chip{background:#eef7a1;border-radius:7px;padding:5px 10px;font-family:ui-monospace,Menlo,monospace;font-size:13px;font-weight:700;letter-spacing:.4px}
+  .chip.plain{background:transparent;color:#555;font-weight:600}
+  h1{font-size:clamp(74px,10.5vw,138px);line-height:.94;letter-spacing:-3.5px;font-weight:800}
+  .sub{font-size:20.5px;line-height:1.5;color:#333;max-width:480px;margin:26px 0}
+  .cta{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+  .play{display:inline-flex;gap:9px;align-items:center;text-decoration:none;font-weight:600;font-size:16.5px}
+  .play span{width:40px;height:40px;border:1.8px solid #111;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:14px}
+  .stage{position:relative;min-height:520px}
+  .circle{position:absolute;right:0;top:0;width:480px;height:480px;max-width:92%;aspect-ratio:1;background:#eef7a1;border-radius:50%}
+  .face{position:absolute;right:110px;top:88px;font-size:190px;line-height:1}
+  .floaty{position:absolute;background:#fff;border-radius:18px;box-shadow:0 18px 50px rgba(0,0,0,.13);padding:16px 18px}
+  .needs{right:6px;top:26px;width:290px}
+  .needs small{font-family:ui-monospace,Menlo,monospace;font-size:12px;letter-spacing:1.2px;color:#666}
+  .needs small b{color:#e08a00}
+  .needs p{font-size:16.5px;font-weight:600;margin:7px 0 11px}
+  .needs .row{display:flex;gap:8px}
+  .needs .row a{border-radius:999px;padding:8px 16px;font-size:14.5px;text-decoration:none;font-weight:600}
+  .needs .ok{background:#111;color:#fff}.needs .no{background:#f1f1f3;color:#111}
+  .done{left:0;bottom:0;width:400px;max-width:94%}
+  .done h4{font-size:16.5px;display:flex;justify-content:space-between}
+  .done h4 span{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:#777;letter-spacing:.6px}
+  .task{display:flex;gap:11px;padding:10px 0;border-top:1px solid #f0f0f2;align-items:flex-start}
+  .task .em{font-size:21px}
+  .task b{font-size:15.5px;display:block}
+  .task small{color:#777;font-size:13.5px}
+  .task time{margin-left:auto;color:#999;font-size:13px;white-space:nowrap}
+  .flow{padding:56px 0 10px}
+  .flow h2{font-size:42px;letter-spacing:-1.2px;margin-bottom:8px}
+  .flow .lede{color:#444;font-size:19px;max-width:720px;line-height:1.5}
+  .steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin-top:30px}
+  .step{border:1px solid #ececf0;border-radius:20px;padding:19px;position:relative;background:#fff}
+  .step .n{position:absolute;top:14px;right:16px;font-family:ui-monospace,Menlo,monospace;color:#bbb;font-size:13px}
+  .step .who{display:flex;gap:9px;align-items:center;margin-bottom:9px}
+  .step .who .em{font-size:25px}
+  .step .who b{font-size:16.5px}
+  .step .who small{display:block;color:#777;font-size:13px}
+  .step h3{font-size:21px;margin-bottom:6px;letter-spacing:-.3px}
+  .step p{color:#444;font-size:15px;line-height:1.5}
+  .step .you{margin-top:10px;background:#f7f7f9;border-radius:11px;padding:8px 11px;font-size:13.5px;color:#333}
+  .arrow{align-self:center;text-align:center;color:#bbb;font-size:20px}
+  .strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin:44px 0}
+  .strip div{background:#f7f7f9;border-radius:20px;padding:20px}
+  .strip b{font-size:17.5px;display:block;margin-bottom:5px}
+  .strip p{color:#444;font-size:15px;line-height:1.5}
+  .final{background:#111;color:#fff;border-radius:26px;padding:44px;text-align:center;margin:16px 0 50px}
+  .final h2{font-size:38px;letter-spacing:-1px;margin-bottom:10px}
+  .final p{color:#bbb;max-width:560px;margin:0 auto 22px;line-height:1.55;font-size:17px}
+  .final .btn{background:#eef7a1;color:#111}
+  footer{color:#888;font-size:13.5px;padding:0 0 40px;line-height:1.6}
+  @media (max-width:920px){.hero{grid-template-columns:1fr}.stage{min-height:560px}.face{right:60px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a class="logo" href="/school">🎧 bippity</a>
+    <nav>
+      <a href="#flow">How it works</a>
+      <a href="/">Live console</a>
+      <a class="btn small" href="/signup">Get bippity</a>
+    </nav>
+  </header>
+
+  <section class="hero">
+    <div>
+      <div class="chips"><span class="chip">FOR MICROSCHOOLS</span><span class="chip plain">ENROLLMENT, RUN BY BOTS</span></div>
+      <h1>Fill<br>every<br>seat.</h1>
+      <p class="sub">A small team of AI bots that runs your enrollment office: answers every inquiry in under a minute, books the tours, chases the paperwork, and walks each family from first hello to first day — while you teach.</p>
+      <div class="cta">
+        <a class="btn" href="/signup">Start free</a>
+        <a class="play" href="#flow"><span>▶</span> See how it works</a>
+      </div>
+      <p style="color:#888;font-size:14px;margin-top:16px">For schools of 10–60 students. You approve anything that carries your school's name — or a dollar sign.</p>
+    </div>
+    <div class="stage">
+      <div class="circle"></div>
+      <div class="face">🧭</div>
+      <div class="floaty needs">
+        <small><b>●</b> NEEDS YOU</small>
+        <p>Deposit link ready for the newest family — send it?</p>
+        <div class="row"><a class="ok" href="/signup">Approve</a><a class="no" href="#flow">Not now</a></div>
+      </div>
+      <div class="floaty done">
+        <h4>Done today <span>SIMULATED WEEK · WILLOW CREEK</span></h4>
+        <div class="task"><span class="em">💬</span><div><b>Answered a new inquiry in 38 seconds</b><small>Ivy · First response</small></div><time>8:02 AM</time></div>
+        <div class="task"><span class="em">🌿</span><div><b>Rescued a missed tour, rebooked Saturday</b><small>Tess · Tours</small></div><time>10:40 AM</time></div>
+        <div class="task"><span class="em">📋</span><div><b>Completed an application packet</b><small>Ana · Applications</small></div><time>1:15 PM</time></div>
+        <div class="task"><span class="em">🎟️</span><div><b>Filled an open seat from the waitlist</b><small>Walt · Waitlist</small></div><time>3:48 PM</time></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="flow" id="flow">
+    <h2>First hello to first day. Then next year.</h2>
+    <p class="lede">Eight steps. Your bots do the legwork at every one; you appear exactly where a founder should — at the decisions. Nothing with your school's name or a family's money on it moves without your tap.</p>
+    <div class="steps" id="steps"></div>
+  </section>
+
+  <section class="strip">
+    <div><b>No front-desk hire</b><p>The bots cover the inbox, the follow-ups and the reminders — the work that quietly eats a founder's evenings.</p></div>
+    <div><b>No family goes quiet</b><p>Every inquiry gets a warm answer in under a minute, and every stalled step gets one gentle nudge. Then they stop — no pestering.</p></div>
+    <div><b>You stay the decision</b><p>Acceptances, prices, aid and deposits always wait for you. Money actions are refused in code, not just discouraged.</p></div>
+  </section>
+
+  <section class="final">
+    <h2>Your next seat is an inquiry you haven't answered yet.</h2>
+    <p>Start in Practice mode: the team runs against a fictional school so you can watch a full enrollment week before a single real family is touched.</p>
+    <a class="btn" href="/signup">Start free</a>
+  </section>
+
+  <footer>
+    Demo families and figures above come from Willow Creek, the fictional school the bots practice on — your school's numbers will be your own.<br>
+    bippity is an open harness: self-host it free, or use the hosted plan. Bots work in shadow/Practice mode until you say go.
+  </footer>
+</div>
+<script>
+  const STEPS=[
+    ['1','Inquiry','💬','Ivy','First response','A parent messages at 9:40 PM. Ivy answers in under a minute, warmly, answers their real question, and offers two tour times.','You: nothing — it is already handled.'],
+    ['2','Tour','🌿','Tess','Tours','Tess books the tour, sends directions and a reminder, and if life happens, rescues a no-show with two new times inside the hour.','You: greet them at the door.'],
+    ['3','Application','📋','Ana','Applications','Ana sends the packet, checks it as forms land, and nudges once about the one missing page — never twice.','You: nothing until it is complete.'],
+    ['4','Shadow Day','🎒','Chief','Coordination','The visit day is scheduled, the host teacher gets a note about the child, and the family knows what to bring.','You: watch them in your classroom.'],
+    ['5','Accepted','💌','Chief','Your decision','The bot drafts the acceptance — letter, next steps, dates — from your template, in your voice.','You: read it, tap Approve. It never sends itself.'],
+    ['6','Deposit','🧾','Ana','Paperwork','After acceptance, Ana sends the deposit link and tracks it until it lands, with one polite reminder if it stalls.','You: approved it at step 5. Bots never move money.'],
+    ['7','Enrolled','🎉','Chief','Welcome','Welcome pack out, roster updated, first-day checklist to the family, and the seat count ticks up where you can see it.','You: plan the first day.'],
+    ['8','Re-enrollment','🔁','Rae','Next year','In spring, Rae asks your families first — seats held until your deadline, quiet follow-up, open seats released to the waitlist after.','You: set the deadline once.'],
+  ];
+  document.getElementById('steps').innerHTML=STEPS.map(s=>'<div class="step"><span class="n">STEP '+s[0]+'</span><div class="who"><span class="em">'+s[2]+'</span><div><b>'+s[3]+'</b><small>'+s[4]+'</small></div></div><h3>'+s[1]+'</h3><p>'+s[5]+'</p><div class="you">'+s[6]+'</div></div>').join('');
+</script>
+</body>
+</html>
